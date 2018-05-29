@@ -1,0 +1,68 @@
+{\rtf1\ansi\ansicpg1252\deff0\deflang1033\deflangfe1033{\fonttbl{\f0\fnil\fcharset134 \'cb\'ce\'cc\'e5;}{\f1\fswiss\fcharset0 Arial;}}
+\viewkind4\uc1\pard\nowidctlpar\ri-720\sa200\lang9\f0\fs18 Before you Begin.... \par
+\lang1033 This document will provide you with a high level overview of the content found within a Control4 Driver Development Template. In addition to this, Control4 has provided two resources to assist you with your template based driver development work. Utilizing these resources is strongly suggested if you are unfamiliar with Control4 Driver Templates.\par
+The first resource is a training video called T-401 Module 8: c4z Files and Driver Templates. This 20-minute video offers an excellent introduction to driver templates and also provides usage examples.\par
+The second is a document that outlines all of the data flows that move through a driver template. The document also details the template directories most important to your development work and provides examples on how they need to be populated. It is called T-401 Module 8a: Download of the c4z Template Workflow\par
+Both of these resources, along with all of Control4\rquote s Driver Development Training videos, are available on the Control4 Training Portal at: \line\pard\ri-720 <http://dealer.control4.com>\line\par
+Once logged in, click on Support -> Drivers and select the Driver Development option to access the Training Portal.\par
+Please share any questions or comments regarding the use of the Control4 Driver Development Template through the DriverWorks area of the Official Control4Dealer Forms. The Forums can be found here: \line <https://forums.control4.com/register.aspx>\par
+\par
+The following sections provide an explanation of the components that make up a Control4 Driver Development Template. The end of the document contains information that is specific to the proxy that this template was created to support.Control4 \par
+\pard\nowidctlpar\ri-720\sa200\lang9\par
+Control4 Driver Template Overview\par
+Driver Development Templates are delivered by Control4 in an effort to enhance the way device drivers are developed by partners and third parties. Driver Templates provide a pre-defined starting point for the driver developer and offer an opportunity to not only shorten the development lifecycle but offer a level of consistency across the driver community.\par
+At its most basic level a Driver template is a zip file in the form of a .c4z file. It contains numerous folders and files which, when encapsulated inside a .c4z zip file, represents the beginnings of a device driver. The modularity within the Driver Template structure enables a far more organized approach to device driver architecture. It also provides the ability to include many related development objects within the confines of the driver in an organized manner.\par
+These objects can include items such as custom graphics and icon directories can be displayed on Navigator as well as device driver XML - which is now separated from the driver\rquote s lua code.\par
+The Driver Templates also take advantage of the .c4z structure by delivering libraries of commonly used lua functionality. These now reside in specified directory locations and can be easily referenced.\par
+Additionally, rich text documentation can be delivered through the template to support a far superior user assistance model.\par
+Additional information on Control4 Driver Templates can be found on the Control4 University in the training video titled: c4z Files and Driver Templates.\par
+\par
+\page\par
+Contents of the Control4 Camera Driver Template\par
+This section provides a definition for the directories and files that are delivered within a Control4 Driver Template which require no modification at all by the driver developer. The folders which contain these files are designated in this document with a note of \ldblquote Requires No Modification\rdblquote .\par
+\pard Camera Folder - The content of this folder requires no modification by the driver\par
+developer. The camera folder contains classes that define the Camera proxy itself.\par
+\par
+\pard\nowidctlpar\li720\ri-720\sa200\tx720\f1 ip\f0 _proxy_class.lua - Implementation of the Camera Proxy Class.\par
+\f1 ip\f0 _proxy_commands.lua -This .lua file contains all of the commands using the ReceivedFromProxy API. The proxy command implementation is done in the proxy_commands.lua file.\par
+\pard\li720\tx720\f1 ip\f0 _proxy_notifies.lua - This .lua file contains all of the Camera Proxy API Commands required to send notifications to Control4. These API Commands are called in the device_specific_commands.lua file.\lang3081\par
+\pard\nowidctlpar\ri-720\sa200\lang9\par
+common Folder: The content of this folder requires no modification by the driver developer. This folder contains numerous .lua files which are required by most Control4 drivers. \par
+\pard\nowidctlpar\fi-16\li736\ri-720\sa200 c4_command.lua - This .lua file contains the API functions required to handle commands the driver receives through ExecuteCommand & ReceivedFromProxy.\par
+\pard\nowidctlpar\fi-736\li736\ri-720\sa200\tab c4_common.lua - This .lua file contains common helper functions used by Control4 drivers.\par
+\tab c4_device_connection_base.lua - The Device Connection Base Class.lua file. This is the base class which makes up the class structure used for communication with devices. The other files in this class: c4_ir_connection.lua, c4_network_connection.lua, c4_serial_connection.lua, c4_url_ connection.lua\par
+\tab c4_driver_declarations.lua - This .lua file contains Common Driver Declarations.\par
+\tab c4_init.lua - This .lua file contains the API functions required to handle calls the driver receives during its initialization. This includes OnDriverInit, OnDriverLateInit & OnDrivetrDestroyed\par
+\tab c4_ir_connection.lua - This .lua file is required for drivers using IR control.\par
+\tab c4_network_connection.lua - This .lua file is required for drivers using Network control.\par
+\tab c4_notify.lua - This .lua file contains helper functions for sending Notifications.\par
+\tab c4_property.lua - This .lua file contains the API function that is called when a property changes.\par
+\tab c4_serial_connection.lua - This .lua file is required for drivers using Serial control.\par
+\tab c4_url_connection.lua - This .lua file is required for cloud-based drivers.\par
+\tab c4_utils.lua  - This file contains several .lua functions that driver may use.\par
+\pard\nowidctlpar\ri-720\sa200 lib Folder: The content of this folder requires no modification by the driver developer. This folder contains several libraries provided by Control4 that a driver may or may not use.\par
+\pard\nowidctlpar\fi-736\li736\ri-720\sa200\tab c4_log.lua - Control4 driver templates use this library for logging. It includes code to support items such as log naming conventions, logging levels & enabling/disabling logging.\par
+\tab c4_object.lua - This .lua file is a base class file that defies the class/object structure. It contains the InheritFrom function used by any class defined in the driver.\par
+\tab c4_queue.lua - This .lua file is a class used to manage a queue. The class handles moving data into and out of the queue for the driver.\par
+\tab c4_timer.lua - This .lua file is a class used to manage timers.\par
+\tab c4_xml.lua - This .lua file contains helper functions associated with parsing and managing the driver\rquote s XML.\par
+\pard\nowidctlpar\ri-720\sa200 www Folder:  This folder contains the icons for the driver which are diplayed in ComposerPro. If you would like to dsiplay custom icons, please refer to the Driver Icon Management documentation found in the DriverWorks SDK Getting Started guide.\par
+This section provides a definition of the files that are delivered within a Control4 Driver Template that require modification by the driver developer.\par
+actions.lua - This .lua file contains all of the functions needed to handle the Actions that are defined in the driver.\par
+connections.lua - This .lua file contains the functions which manage the status of the drivers\rquote  connection bindings and connection state. These include: OnSerialConnectionChanged, OnIRConnectionChanged, OnNetworkConnectionChanged, OnNetworkStatusChanged, OnURLConnectionChanged.\par
+device_messages.lua - This .lua file contains the Get, Handle and Dispatch message functions. These functions are used to receive data from the communication buffer (Get), Parse the data appropriately (Handle) and send the parsed data (Dispatch). Refer to the camera_proxy_class.lua file in this template as a reference of the device functions that are in the proxy. All device functions begin with \ldblquote dev_\rdblquote .\par
+device_specific_commands.lua - This .lua file contains all of the driver\rquote s ExecuteCommand Code. Functions for device specific commands should be implemented in this file. These are functions that use: EX_CMD.<command>. These functions are received using ExecuteCommand and represent functions that the device provides but are not supported through the defined Control4 Proxy.\par
+documentation.rtf - This .rtf file contains all of the driver\rquote s documentation. The contents of this file will be displayed in Composer Pro\rquote s Advanced Properties Window. \par
+driver.lua - This .lua file is the main .lua file for the device driver. This is the .lua file defined in the driver XML. It is the first .lua file that gets executed when the driver is loaded.\par
+driver.xml - This .XML file contains all of the driver\rquote s XML code. \par
+properties.lua - This .lua file contains the implementation for any Properties found in the driver.\par
+proxy_commands.lua - This .lua file contains all of the driver\rquote s commands that are sent from the Camera Proxy. These commands are received using the ReceivedFromProxy API. Implement any commands needed by your driver in this file. Note the use of \ldblquote TODO\rdblquote  in the file documentation that indicates exactly where the driver developer needs to write code.\par
+Note the commands:\par
+GET_SNAPSHOT_QUERY_STRING\par
+GET_MJPEG_QUERY_STRING\par
+GET_RTSP_H264_QUERY_STRING\par
+Populating these commands in the driver template with the corroect URL strings can serve as a quick means of testsing your driver's functionality.\par
+proxy_init.lua - This .lua file contains all of the driver\rquote s initialization functions. These include: ON_DRIVER_EARLY_INIT & ON_DRIVER_LATEINIT.\par
+template documentation.rtf - This document.\par
+\par
+}

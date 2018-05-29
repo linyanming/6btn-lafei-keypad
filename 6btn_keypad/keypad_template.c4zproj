@@ -1,0 +1,48 @@
+﻿<Driver type="c4z" name="keypad_template" squishLua="true" manualsquish="true">
+ <Items>
+  <Item type="dir" c4zDir="common" name="common" recurse="true" exclude="false" />
+  <Item type="dir" c4zDir="icons" name="icons" recurse="true" exclude="false" />
+  <Item type="dir" c4zDir="keypad" name="keypad" recurse="true" exclude="false" />
+  <Item type="dir" c4zDir="lib" name="lib" recurse="true" exclude="false" />
+  <Item type="dir" c4zDir="www" name="www" recurse="true" exclude="false" />
+  <Item type="file" name="actions.lua" />
+  <Item type="file" name="connections.lua" />
+  <Item type="file" name="device_messages.lua" />
+  <Item type="file" name="device_specific_commands.lua" />
+  <Item type="file" name="driver.lua" />
+  <Item type="file" name="driver.xml" />
+  <Item type="file" name="properties.lua" />
+  <Item type="file" name="proxy_commands.lua" />
+  <Item type="file" name="proxy_init.lua" />
+  <Item type="file" name="template documentation.rtf" exclude="true" />
+ </Items>
+ <Squishy>
+  <File>common\c4_common.lua</File>
+  <File>common\c4_device_connection_base.lua</File>
+  <File>common\c4_driver_declarations.lua</File>
+  <File>common\c4_init.lua</File>
+  <File>common\c4_ir_connection.lua</File>
+  <File>common\c4_network_connection.lua</File>
+  <File>common\c4_notify.lua</File>
+  <File>common\c4_command.lua</File>
+  <File>common\c4_serial_connection.lua</File>
+  <File>common\c4_url_connection.lua</File>
+  <File>common\c4_utils.lua</File>
+  <File>common\c4_property.lua</File>
+  <File>lib\c4_object.lua</File>
+  <File>lib\c4_log.lua</File>
+  <File>lib\c4_timer.lua</File>
+  <File>lib\c4_queue.lua</File>
+  <File>actions.lua</File>
+  <File>lib\c4_xml.lua</File>
+  <File>connections.lua</File>
+  <File>properties.lua</File>
+  <File>device_messages.lua</File>
+  <File>keypad\keypad_proxy_class.lua</File>
+  <File>keypad\keypad_proxy_commands.lua</File>
+  <File>keypad\keypad_proxy_notifies.lua</File>
+  <File>device_specific_commands.lua</File>
+  <File>proxy_commands.lua</File>
+  <File>proxy_init.lua</File>
+ </Squishy>
+</Driver>

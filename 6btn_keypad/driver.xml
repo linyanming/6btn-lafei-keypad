@@ -1,0 +1,167 @@
+<devicedata>
+  <copyright>Copyright 2018 Hiwise Corporation.  All rights reserved.</copyright>
+  <creator>Hiwise ming</creator>
+  <!-- 
+	If you are making your own driver then change the details below.  Note the date is in US format: Month/Day/Year
+	-->
+  <manufacturer>Hiwise</manufacturer>
+  <name>6 Buntton Keypad</name>
+  <model>6 Buntton Keypad</model>
+  <created>05/24/2018 9:03 AM</created>
+  <modified>05/28/2018 1:05 PM</modified>
+  <!-- 
+	Each time you modify the driver update the version number below.
+	-->
+  <version>7</version>
+  <capabilities>
+    <!-- 
+		These are the modes the camera might support.  If the camera does not support H264 then remove the H264 entries
+		If H264I is not supported just remove that entry.  Cameras must support MJPEG in order to be displayed on Flash based UIs.
+		-->
+    <!-- 
+		This driver assumes a static camera.  For PTZ cameras change the supported capabilities below to True.
+		Then complete the corresponding functions in the Lua code.
+		-->
+    <!-- 
+		This is the default port number that you access the camera's images on.  If you just type a URL without a port number then the port number is the standard 80.
+		For the H264 stream this is often accessed using RTSP.  The default port number for this is 554 unless stated otherwise in the camera's documentation.
+		-->
+    <!-- 
+		If the camera requires a username and password to access the streams (most do) then complete the default values below.
+		-->
+    <!--default_authentication_type>DIGEST</default_authentication_type-->
+    <!-- 
+		Unless the camera uses SDDP and you wish to make the connections on the Network tab leave both the below as False.
+		-->
+    <!-- 
+		Unless you wish to hide the details of the URLs on the test page leave the following as false.
+		-->
+    <!-- 
+		Most cameras provide their H264 stream over RTSP.  Check the camera documentation and if its URI is in the form RTSP://XXX.XXX.XXX.XXX keep the below false.
+		If the H264 stream does not appear or the documentation states it is accessed over HTTP then set the below to True.
+		-->
+    <click_support>True</click_support>
+    <button_behavior>True</button_behavior>
+    <custom_finishes>True</custom_finishes>
+    <engravable>True</engravable>
+    <fallback_support>False</fallback_support>
+    <flow_top_down>True</flow_top_down>
+    <has_leds>True</has_leds>
+    <hide_proxy_events>False</hide_proxy_events>
+    <hide_proxy_properties>False</hide_proxy_properties>
+    <led_behaviour>True</led_behaviour>
+    <led_have_color>True</led_have_color>
+    <multi_click_support>False</multi_click_support>
+    <columns>4</columns>
+    <rows>2</rows>
+    <hide_proxy_commands>False</hide_proxy_commands>
+    <hide_proxy_conditionals>False</hide_proxy_conditionals>
+  </capabilities>
+  <small>devices_sm\ThreeButtonKeypad.GIF</small>
+  <large>devices_lg\camera_lg.gif</large>
+  <control>lua_gen</control>
+  <controlmethod>serial</controlmethod>
+  <driver>DriverWorks</driver>
+  <proxies qty="1">
+    <proxy proxybindingid="5001" name="keypad">keypad_proxy</proxy>
+  </proxies>
+  <connections>
+    <connection>
+      <id>5001</id>
+      <facing>6</facing>
+      <connectionname>KEYPAD</connectionname>
+      <type>2</type>
+      <consumer>false</consumer>
+      <audiosource>false</audiosource>
+      <videosource>false</videosource>
+      <linelevel>false</linelevel>
+      <hidden>true</hidden>
+      <classes>
+        <class>
+          <classname>KEYPAD</classname>
+        </class>
+      </classes>
+    </connection>
+    <connection>
+      <type>1</type>
+      <id>1</id>
+      <audiosource>false</audiosource>
+      <videosource>false</videosource>
+      <connectionname>485_BUS</connectionname>
+      <facing>6</facing>
+      <consumer>true</consumer>
+      <linelevel>true</linelevel>
+      <classes>
+        <class>
+          <classname>485_BUS</classname>
+        </class>
+      </classes>
+    </connection>
+  </connections>
+  <config>
+    <properties>
+      <property>
+        <name>Log Level</name>
+        <type>LIST</type>
+        <readonly>false</readonly>
+        <default>5 - Trace</default>
+        <items>
+          <item>0 - Fatal</item>
+          <item>1 - Error</item>
+          <item>2 - Warning</item>
+          <item>3 - Info</item>
+          <item>4 - Debug</item>
+          <item>5 - Trace</item>
+        </items>
+      </property>
+      <property>
+        <name>Log Mode</name>
+        <type>LIST</type>
+        <readonly>false</readonly>
+        <default>Off</default>
+        <items>
+          <item>Off</item>
+          <item>Print</item>
+          <item>Log</item>
+          <item>Print and Log</item>
+        </items>
+      </property>
+      <!-- 
+                If the camera supports multiple stream configurations that can be selected by a stream ID, then the following
+                properties can be used to set which stream to use for specific resolutions or type. If the camera does not support 
+                multiple stream configurations using stream IDs, then the Stream ID properties can be removed.
+            -->
+      <!-- 
+                If the camera supports multiple stream configurations that can be selected by a profile name, then the following
+                properties can be used to set which stream to use for specific resolutions or type. If the camera does not support 
+                multiple stream configurations using profiles, then the Stream Profile properties can be removed.
+            -->
+      <property>
+        <name>DeviceID</name>
+        <type>RANGED_INTEGER</type>
+        <default>0</default>
+        <minimum>0</minimum>
+        <maximum>64</maximum>
+      </property>
+    </properties>
+    <!-- 
+		Update the documentation rtf file then copy the text version between the two documentation tabs for Composer Express
+		-->
+    <documentation file="www/documentation.rtf"></documentation>
+    <script file="driver.lua"></script>
+    <power_management_method>DirectControl</power_management_method>
+    <power_command_delay>0</power_command_delay>
+    <power_delay>0</power_delay>
+    <power_command_needed>False</power_command_needed>
+    <actions>
+      <action>
+        <name>Sync</name>
+        <command>Sync</command>
+      </action>
+    </actions>
+    <serialsettings>9600 8 none 1 none 485</serialsettings>
+  </config>
+  <composer_categories>
+    <category>Controllers</category>
+  </composer_categories>
+</devicedata>
