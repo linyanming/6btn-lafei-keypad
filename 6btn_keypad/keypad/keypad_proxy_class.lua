@@ -21,7 +21,7 @@ end
 
 function KeypadProxy:Initialize()
 	-- create and initialize member variables
-    self._PackLen = 8
+--    self._PackLen = 8
 	self._SyncDevid = Properties["DeviceID"]
 	self._SyncMode = false
 end
@@ -35,33 +35,104 @@ function KeypadProxy:dev_Newbuttoncreate(buttonid,buttonname)
 	NOTIFY.NEW_KEYPAD_BUTTON(self._BindingID, new_button)
 end
 
+BASEADDR = {KEYPAD_BASE_ADDR = 0x1000,
+			BUTTON_BASE_ADDR = 0x1011,BUTTON_MAX_ADDR = 0x101F,
+			LED_BASE_ADDR    = 0x1020,LED_MAX_ADDR    = 0x102F,
+			RELAY_BASE_ADDR  = 0x1031,RELAY_MAX_ADDR  = 0x103F}
+COMMAND = {READ_CMD = 0x03,WRITE_CMD = 0x06,BTN_WRITE_CMD = 0x20}
+BUTTONDATA = {LEDOFF_PRESSED = 0x80,LEDOFF_RELEASED = 0xff,
+              LEDON_PRESSED  = 0x00,LEDON_RELEASED  = 0x7f,
+              LEDOFF_LONG_RELEASE = 0xfd,LEDOFF_LONG_PRESS = 0x81,LEDOFF_BTN_DEAD = 0xfe,
+              LEDON_LONG_RELEASE  = 0x7d,LEDN_LONG_PRESS   = 0x01,LEDON_BTN_DEAD  = 0x7e
+              }
+
+--[[=====================================================================
+Send Command To Device
+parameters:
+command:READ_CMD or WRITE_CMD  in COMMAND table
+reg_addr:address in BASEADDR table 2bytes
+reg_data:Register data 2bytes
+=======================================================================]]
+
+function KeypadProxy:SendCommandToDeivce(command,reg_addr,reg_data)
+    LogTrace("KeypadProxy:SendCommandToDeivce")
+
+	local cmd = string.pack("bb>H>H",self._SyncDevid,command,reg_addr,reg_data)
+	hexdump(cmd)
+	local crccode = usMBCRC16(cmd,#cmd)
+	cmd = cmd .. string.pack("H",crccode)
+	hexdump(cmd)
+	local message = ""
+	for i = 1,#cmd do
+	    message = message .. string.format("%02x",string.byte(cmd,i))
+	    print("message:" .. message)
+	end
+	local devid = C4:GetDeviceID()
+	local id = C4:GetBoundProviderDevice(devid,BUS_BINDING_ID)
+	print("Id is " .. id)
+	C4:SendToDevice(id,"SENDCMD",{COMMAND = message})
+end
+
+--[[=====================================================================
+Control Button LED
+parameters:
+btnid:A number 0~15
+state:0   OFF
+	  1   ON
+=======================================================================]]
+
+function KeypadProxy:ButtonLedControl(btnid,state)
+    LogTrace("KeypadProxy:ButtonLedControl")
+	local led_reg_addr = BASEADDR.LED_BASE_ADDR + btnid
+	if(led_reg_addr > BASEADDR.LED_MAX_ADDR) then
+		return false
+	end
+	self:SendCommandToDeivce(COMMAND.WRITE_CMD,led_reg_addr,state)
+	return true
+end
+
+
 function KeypadProxy:HandleMessage(message,msglen)
-    LogTrace("EX_CMD.RECVMSG")
+    LogTrace("KeypadProxy:HandleMessage")
+    LogTrace("msglen = %d",msglen)
     hexdump(message)
-    if(#message ~= self._PackLen) then
-        return nil
+    local crccode = usMBCRC16(message,msglen-2)
+    local cmddata = ""
+    if(bit.rshift(crccode,8) == string.byte(message,msglen-2+2) and bit.band(crccode,0xff) == string.byte(message,msglen-2+1)) then
+        local pos,devid,cmd,reg_addr = string.unpack(message,"bb>H")
+        local datalen,data
+        if(devid == self._SyncDevid) then
+            cmddata = string.sub(message,pos)
+            hexdump(cmddata)
+            if(cmd == COMMAND.BTN_WRITE_CMD) then
+                pos,datalen,data = string.unpack(cmddata,">H>H")
+			 print("datalen = " .. datalen .. "data = " .. data)
+                if(datalen == 1 and (data == BUTTONDATA.LEDOFF_PRESSED or data == BUTTONDATA.LEDON_PRESSED)) then
+                    local notifycmd = {}
+                    notifycmd.BUTTON_ID = reg_addr - BASEADDR.BUTTON_BASE_ADDR + 1
+                    notifycmd.ACTION = 1
+                    self:prx_KEYPAD_BUTTON_ACTION(notifycmd)
+                elseif(datalen == 1 and (data == BUTTONDATA.LEDOFF_RELEASED or data == BUTTONDATA.LEDON_RELEASED or data == BUTTONDATA.LEDOFF_LONG_RELEASE or data == BUTTONDATA.LEDON_LONG_RELEASE))
+                then
+                    local notifycmd = {}
+                    notifycmd.BUTTON_ID = reg_addr - BASEADDR.BUTTON_BASE_ADDR + 1
+                    notifycmd.ACTION = 0
+                    self:prx_KEYPAD_BUTTON_ACTION(notifycmd)
+                else
+                    LogTrace("data error")
+                end
+            elseif(cmd == COMMAND.READ_CMD or cmd == COMMAND.WRITE_CMD) then
+                pos,data = string.unpack(cmddata,">H")
+			 LogTrace("cmd == COMMAND.READ_CMD or cmd == COMMAND.WRITE_CMD")
+            else
+                LogTrace("cmd error")
+            end
+        else
+            LogTrace("device addr error")
+        end
+
     else
-        local msg_data = {}
-        for i = 1,#message do
-    	    msg_data[i] = string.byte(message,i)
-    	    print(i .. ":" .. msg_data[i])
-        end
-        if(msg_data[1] == 0x55 and msg_data[2] == 0x2a and msg_data[3] == 0x30) then
-            local sum = 0
-		    for i = 1,7 do
-		        sum = sum + msg_data[i]
-		    end
-		    if(bit.band(sum,0xff) == msg_data[8]) then
-		        local dev_id = bit.band(msg_data[4],0xf8)/8
-			    local btn_id = bit.band(msg_data[4],0x07)
-			    LogTrace("dev_id = %d btn_id = %d", dev_id,btn_id)
-			    if(dev_id == self._SyncDevid) then
-			        self:ButtonPressed(btn_id)
-			    end
-		    end
-		else
-		    return nil
-        end
+        LogTrace("HandleMessage data error!!")
     end
 end
 
@@ -75,9 +146,11 @@ function KeypadProxy:ButtonPressed(buttonid)
     NOTIFY.KEYPAD_BUTTON_ACTION(self._BindingID,cmd)
 end
 
+
 --[[=============================================================================
     KeypadProxy Proxy Commands(PRX_CMD)
 ===============================================================================]]
+
 function KeypadProxy:prx_KEYPAD_BUTTON_ACTION(tParams)
     tParams = tParams or {}
     local cmd = {}
@@ -87,23 +160,25 @@ function KeypadProxy:prx_KEYPAD_BUTTON_ACTION(tParams)
     cmd.BUTTON_ID = btnid
     cmd.ACTION = action
     NOTIFY.KEYPAD_BUTTON_ACTION(self._BindingID,cmd)
-    
 end
 
---[[=============================================================================
-    Camera Proxy Commands(PRX_CMD)
-===============================================================================]]
---[[
-function CameraProxy:prx_SET_ADDRESS(tParams)
-	tParams = tParams or {}
-	self._Address = tParams["ADDRESS"] or self._Address
+function KeypadProxy:prx_KEYPAD_BUTTON_INFO(tParams)
+    LogTrace("KeypadProxy:prx_KEYPAD_BUTTON_INFO")
+    LogTrace(tParams)
+    tParams = tParams or {}
+    local state = tParams["STATE"]
+    local btnid = tParams["BUTTON_ID"]
+    local led_state
+    print("state = " .. state .. "type:" .. type(state))
+    if(state == "True") then
+        led_state = 1
+    else
+        led_state = 0
+    end
+    self:ButtonLedControl(btnid,led_state)
 end
 
-function CameraProxy:prx_SET_ADDRESS(tParams)
-	tParams = tParams or {}
-	self._Address = tParams["ADDRESS"] or self._Address
-end
-]]
+
 
 
 

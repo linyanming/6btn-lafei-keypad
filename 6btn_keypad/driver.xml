@@ -5,14 +5,14 @@
 	If you are making your own driver then change the details below.  Note the date is in US format: Month/Day/Year
 	-->
   <manufacturer>Hiwise</manufacturer>
-  <name>6 Buntton Keypad</name>
-  <model>6 Buntton Keypad</model>
-  <created>05/24/2018 9:03 AM</created>
-  <modified>05/28/2018 1:05 PM</modified>
+  <name>6 Buntton Lafei Keypad</name>
+  <model>Lafei Keypad</model>
+  <created>05/29/2018 10:35 AM</created>
+  <modified>05/30/2018 12:17 PM</modified>
   <!-- 
 	Each time you modify the driver update the version number below.
 	-->
-  <version>7</version>
+  <version>8</version>
   <capabilities>
     <!-- 
 		These are the modes the camera might support.  If the camera does not support H264 then remove the H264 entries
@@ -50,7 +50,7 @@
     <hide_proxy_events>False</hide_proxy_events>
     <hide_proxy_properties>False</hide_proxy_properties>
     <led_behaviour>True</led_behaviour>
-    <led_have_color>True</led_have_color>
+    <led_have_color>False</led_have_color>
     <multi_click_support>False</multi_click_support>
     <columns>4</columns>
     <rows>2</rows>

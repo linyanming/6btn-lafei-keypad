@@ -1,4 +1,4 @@
-﻿<Driver type="c4z" name="keypad_template" squishLua="true" manualsquish="true">
+﻿<Driver type="c4z" name="lafei keypad" squishLua="true" manualsquish="true">
  <Items>
   <Item type="dir" c4zDir="common" name="common" recurse="true" exclude="false" />
   <Item type="dir" c4zDir="icons" name="icons" recurse="true" exclude="false" />
@@ -24,25 +24,25 @@
   <File>common\c4_ir_connection.lua</File>
   <File>common\c4_network_connection.lua</File>
   <File>common\c4_notify.lua</File>
-  <File>common\c4_command.lua</File>
+  <File>common\c4_property.lua</File>
   <File>common\c4_serial_connection.lua</File>
   <File>common\c4_url_connection.lua</File>
   <File>common\c4_utils.lua</File>
-  <File>common\c4_property.lua</File>
-  <File>lib\c4_object.lua</File>
-  <File>lib\c4_log.lua</File>
-  <File>lib\c4_timer.lua</File>
-  <File>lib\c4_queue.lua</File>
-  <File>actions.lua</File>
-  <File>lib\c4_xml.lua</File>
-  <File>connections.lua</File>
-  <File>properties.lua</File>
-  <File>device_messages.lua</File>
-  <File>keypad\keypad_proxy_class.lua</File>
   <File>keypad\keypad_proxy_commands.lua</File>
   <File>keypad\keypad_proxy_notifies.lua</File>
+  <File>lib\c4_log.lua</File>
+  <File>lib\c4_object.lua</File>
+  <File>lib\c4_queue.lua</File>
+  <File>lib\c4_timer.lua</File>
+  <File>lib\c4_xml.lua</File>
+  <File>actions.lua</File>
+  <File>connections.lua</File>
+  <File>device_messages.lua</File>
   <File>device_specific_commands.lua</File>
+  <File>properties.lua</File>
   <File>proxy_commands.lua</File>
+  <File>common\c4_command.lua</File>
   <File>proxy_init.lua</File>
+  <File>keypad\keypad_proxy_class.lua</File>
  </Squishy>
 </Driver>

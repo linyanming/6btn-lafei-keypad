@@ -20,7 +20,7 @@ COM_COMMAND_RESPONSE_TIMEOUT_SECONDS = 4
 
 NETWORK_PORT = 60000
 IR_BINDING_ID = 2
-SERIAL_BINDING_ID = 1
+BUS_BINDING_ID = 1
 NETWORK_BINDING_ID = 6001
 
 --[[=============================================================================

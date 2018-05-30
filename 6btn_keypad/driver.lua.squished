@@ -1070,9 +1070,9 @@ function SendSimpleNotify(notifyText, ...)
 	bindingID = select(1, ...) or DEFAULT_PROXY_BINDINGID
 	C4:SendToProxy(bindingID, notifyText, {}, "NOTIFY")
 end end)
-package.preload['common.c4_command'] = (function (...)
+package.preload['common.c4_property'] = (function (...)
 --[[=============================================================================
-    Functions for handling and executing commands and actions
+    Function for changing properties
 
     Copyright 2016 Control4 Corporation. All Rights Reserved.
 ===============================================================================]]
@@ -1080,138 +1080,66 @@ require "common.c4_driver_declarations"
 
 -- Set template version for this file
 if (TEMPLATE_VERSION ~= nil) then
-	TEMPLATE_VERSION.c4_command = "2016.01.08"
+	TEMPLATE_VERSION.c4_property = "2016.01.08"
 end
 
 --[[=============================================================================
-    ExecuteCommand(sCommand, tParams)
+    OnPropertyChanged(sProperty)
 
     Description
-    Function called by Director when a command is received for this DriverWorks
-    driver. This includes commands created in Composer programming.
+    Function called by Director when a property changes value. The value of the
+    property that has changed can be found with: Properties[sName]. Note that
+    OnPropertyChanged is not called when the Property has been changed by the
+    driver calling the UpdateProperty command, only when the Property is changed
+    by the user from the Properties Page. This function is called by Director
+    when a property changes value.
 
     Parameters
-    sCommand(string) - Command to be sent
-    tParams(table)   - Lua table of parameters for the sent command
+    sProperty(string) - Name of property that has changed.
 
     Returns
     Nothing
 ===============================================================================]]
-function ExecuteCommand(sCommand, tParams)
-	LogTrace("ExecuteCommand(" .. sCommand .. ")")
-	LogInfo(tParams)
+function OnPropertyChanged(sProperty)
+	local propertyValue = Properties[sProperty]
 
-	-- Remove any spaces (trim the command)
-	local trimmedCommand = string.gsub(sCommand, " ", "")
-	local status, ret
-
-	-- if function exists then execute (non-stripped)
-	if (EX_CMD[sCommand] ~= nil and type(EX_CMD[sCommand]) == "function") then
-		status, ret = pcall(EX_CMD[sCommand], tParams)
-	-- elseif trimmed function exists then execute
-	elseif (EX_CMD[trimmedCommand] ~= nil and type(EX_CMD[trimmedCommand]) == "function") then
-		status, ret = pcall(EX_CMD[trimmedCommand], tParams)
-	elseif (EX_CMD[sCommand] ~= nil) then
-		QueueCommand(EX_CMD[sCommand])
-		status = true
-	else
-		LogInfo("ExecuteCommand: Unhandled command = " .. sCommand)
-		status = true
+	if (LOG ~= nil and type(LOG) == "table") then
+		LogTrace("OnPropertyChanged(" .. sProperty .. ") changed to: " .. Properties[sProperty])
 	end
-	
+
+	-- Remove any spaces (trim the property)
+	local trimmedProperty = string.gsub(sProperty, " ", "")
+	local status = true
+	local err = ""
+
+	if (ON_PROPERTY_CHANGED[sProperty] ~= nil and type(ON_PROPERTY_CHANGED[sProperty]) == "function") then
+		status, err = pcall(ON_PROPERTY_CHANGED[sProperty], propertyValue)
+	elseif (ON_PROPERTY_CHANGED[trimmedProperty] ~= nil and type(ON_PROPERTY_CHANGED[trimmedProperty]) == "function") then
+		status, err = pcall(ON_PROPERTY_CHANGED[trimmedProperty], propertyValue)
+	end
+
 	if (not status) then
-		LogError("LUA_ERROR: " .. ret)
-	end
-	
-	return ret -- Return whatever the function returns because it might be xml, a return code, and so on
-end
-
---[[=============================================================================
-    EX_CMD.LUA_ACTION(tParams)
-
-    Description
-    Function called for any actions executed by the user from the Actions Tab
-    in Composer.
-
-    Parameters
-    tParams(table) - Lua table of parameters for the command option
-
-    Returns
-    Nothing
-===============================================================================]]
-function EX_CMD.LUA_ACTION(tParams)
-	if (tParams ~= nil) then
-		for cmd, cmdv in pairs(tParams) do
-			if (cmd == "ACTION" and cmdv ~= nil) then
-				local status, err = pcall(LUA_ACTION[cmdv], tParams)
-				if (not status) then
-					LogError("LUA_ERROR: " .. err)
-				end
-				break
-			end
-		end
+		LogError("LUA_ERROR: " .. err)
 	end
 end
 
 --[[=============================================================================
-    ReceivedFromProxy(idBinding, sCommand, tParams)
-
-    Description
-    Function called for any actions executed by the user from the Actions Tab
-    in Composer.
-
-    Parameters
-    idBinding(int)   - Binding ID of the proxy that sent a BindMessage to the
-                       DriverWorks driver.
-    sCommand(string) - Command that was sent
-    tParams(table)   - Lua table of received command parameters
-
-    Returns
-    Nothing
+    UpdateProperty(propertyName, propertyValue)
+  
+    Description:
+    Sets the value of the given property in the driver
+  
+    Parameters:
+    propertyName(string)  - The name of the property to change
+    propertyValue(string) - The value of the property being changed
+  
+    Returns:
+    None
 ===============================================================================]]
-function ReceivedFromProxy(idBinding, sCommand, tParams)
-
-	if (sCommand ~= nil) then
-
-		-- initial table variable if nil
-		if (tParams == nil) then
-			tParams = {}
-		end
-		
-		LogTrace("ReceivedFromProxy(): " .. sCommand .. " on binding " .. idBinding .. "; Call Function PRX_CMD." .. sCommand .. "()")
-		LogInfo(tParams)
-
-		if ((PRX_CMD[sCommand]) ~= nil) then
-			local status, err = pcall(PRX_CMD[sCommand], idBinding, tParams)
-			if (not status) then
-				LogError("LUA_ERROR: " .. err)
-			end
-		else
-			LogInfo("ReceivedFromProxy: Unhandled command = " .. sCommand)
-		end
+function UpdateProperty(propertyName, propertyValue)
+	if (Properties[propertyName] ~= nil) then
+		C4:UpdateProperty(propertyName, propertyValue)
 	end
-end
-
---[[
-	This function is called when a UI (Navigator) requests data, and
-	calls the function requested.
---]]
-function UIRequest(sRequest, tParams)
-	local ret = ""
-
-	if (sRequest ~= nil) then
-		tParams = tParams or {}   -- initial table variable if nil
-		LogTrace("UIRequest(): " .. sRequest .. "; Call Function UI_REQ." .. sRequest .. "()")
-		LogInfo(tParams)
-
-		if (UI_REQ[sRequest]) ~= nil then
-			ret = UI_REQ[sRequest](tParams)
-		else
-			LogWarn("UIRequest: Unhandled request = " .. sRequest)
-		end
-	end
-
-	return ret
 end
  end)
 package.preload['common.c4_serial_connection'] = (function (...)
@@ -1722,238 +1650,75 @@ end
 
 
  end)
-package.preload['common.c4_property'] = (function (...)
+package.preload['keypad.keypad_proxy_commands'] = (function (...)
 --[[=============================================================================
-    Function for changing properties
+    Command Functions Received From Proxy to the Camera Driver
+
+    Copyright 2018 Hiwise Corporation. All Rights Reserved.
+===============================================================================]]
+
+-- This macro is utilized to identify the version string of the driver template version used.
+if (TEMPLATE_VERSION ~= nil) then
+	TEMPLATE_VERSION.keypad_proxy_commands = "2018.05.23"
+end
+
+
+function PRX_CMD.KEYPAD_BUTTON_INFO(idBinding, tParams)
+	gKeypadProxy:prx_KEYPAD_BUTTON_INFO(tParams)
+end
+
+function PRX_CMD.KEYPAD_BUTTON_ACTION(idBinding, tParams)
+	gKeypadProxy:prx_KEYPAD_BUTTON_ACTION(tParams)
+end
+
+
+
+--[[UI Requests
+function UI_REQ.GET_SNAPSHOT_QUERY_STRING(tParams)
+	return gCameraProxy:req_GET_SNAPSHOT_QUERY_STRING(tParams)
+end
+
+function UI_REQ.GET_MJPEG_QUERY_STRING(tParams)
+	return gCameraProxy:req_GET_MJPEG_QUERY_STRING(tParams)
+end
+
+function UI_REQ.GET_RTSP_H264_QUERY_STRING(tParams)
+	return gCameraProxy:req_GET_RTSP_H264_QUERY_STRING(tParams)
+end
+
+]] end)
+package.preload['keypad.keypad_proxy_notifies'] = (function (...)
+--[[=============================================================================
+    Notification Functions
 
     Copyright 2016 Control4 Corporation. All Rights Reserved.
 ===============================================================================]]
-require "common.c4_driver_declarations"
 
--- Set template version for this file
+-- This macro is utilized to identify the version string of the driver template version used.
 if (TEMPLATE_VERSION ~= nil) then
-	TEMPLATE_VERSION.c4_property = "2016.01.08"
+	TEMPLATE_VERSION.keypad_proxy_notifies = "2018.05.23"
 end
 
---[[=============================================================================
-    OnPropertyChanged(sProperty)
-
-    Description
-    Function called by Director when a property changes value. The value of the
-    property that has changed can be found with: Properties[sName]. Note that
-    OnPropertyChanged is not called when the Property has been changed by the
-    driver calling the UpdateProperty command, only when the Property is changed
-    by the user from the Properties Page. This function is called by Director
-    when a property changes value.
-
-    Parameters
-    sProperty(string) - Name of property that has changed.
-
-    Returns
-    Nothing
-===============================================================================]]
-function OnPropertyChanged(sProperty)
-	local propertyValue = Properties[sProperty]
-
-	if (LOG ~= nil and type(LOG) == "table") then
-		LogTrace("OnPropertyChanged(" .. sProperty .. ") changed to: " .. Properties[sProperty])
-	end
-
-	-- Remove any spaces (trim the property)
-	local trimmedProperty = string.gsub(sProperty, " ", "")
-	local status = true
-	local err = ""
-
-	if (ON_PROPERTY_CHANGED[sProperty] ~= nil and type(ON_PROPERTY_CHANGED[sProperty]) == "function") then
-		status, err = pcall(ON_PROPERTY_CHANGED[sProperty], propertyValue)
-	elseif (ON_PROPERTY_CHANGED[trimmedProperty] ~= nil and type(ON_PROPERTY_CHANGED[trimmedProperty]) == "function") then
-		status, err = pcall(ON_PROPERTY_CHANGED[trimmedProperty], propertyValue)
-	end
-
-	if (not status) then
-		LogError("LUA_ERROR: " .. err)
-	end
+function NOTIFY.NEW_KEYPAD_BUTTON(bindingID,newbutton)
+     LogTrace("NOTIFY.NEW_KEYPAD_BUTTON")
+	print("bindingID = ".. bindingID)
+     SendNotify("NEW_KEYPAD_BUTTON", newbutton, bindingID)
 end
 
---[[=============================================================================
-    UpdateProperty(propertyName, propertyValue)
-  
-    Description:
-    Sets the value of the given property in the driver
-  
-    Parameters:
-    propertyName(string)  - The name of the property to change
-    propertyValue(string) - The value of the property being changed
-  
-    Returns:
-    None
-===============================================================================]]
-function UpdateProperty(propertyName, propertyValue)
-	if (Properties[propertyName] ~= nil) then
-		C4:UpdateProperty(propertyName, propertyValue)
-	end
+function NOTIFY.KEYPAD_BUTTON_ACTION(bindingID,cmd)
+     LogTrace("KEYPAD_BUTTON_ACTION")
+	print("bindingID = ".. bindingID) 
+     SendNotify("KEYPAD_BUTTON_ACTION", cmd, bindingID)
 end
+
+--[[
+function NOTIFY.PROPERTY_DEFAULTS(bindingID, tPropertyDefaults)
+	LogTrace("NOTIFY.PROPERTY_DEFAULTS")
+
+	SendNotify("PROPERTY_DEFAULTS", tPropertyDefaults, bindingID)
+end
+]]
  end)
-package.preload['lib.c4_object'] = (function (...)
---[[=============================================================================
-    c4_object Class
-
-    Copyright 2016 Control4 Corporation. All Rights Reserved.
-===============================================================================]]
-
--- Set template version for this file
-if (TEMPLATE_VERSION ~= nil) then
-	TEMPLATE_VERSION.c4_object = "2016.01.08"
-end
-
-function inheritsFrom( baseClass )
-	local new_class = {}
-	local class_mt = { __index = new_class }
-
-	function new_class:create(...)
-		local newinst = {}
-
-		setmetatable( newinst, class_mt )
-
-		-- Call the constructor when we create this class
-		if newinst.construct then
-			-- Allow returning a different obj than self. This allows for readonly tables etc...
-			newinst = newinst:construct(...) or newinst
-		end
-
-		return newinst
-	end
-
-	if nil ~= baseClass then
-		setmetatable( new_class, { __index = baseClass } )
-	end
-
-	--[[=============================================================================
-	    Implementation of additional OO properties starts here 
-	===============================================================================]]
-	
-	-- Return the class object of the instance
-	function new_class:class()
-		return new_class
-	end
-
-	--[[=============================================================================
-	    Return the super class object of the instance. 
-
-	    Note Calling methods on the base class itself will modify
-	    the base table's static properties. In order to have call
-	    the base class' methods and have them modify the current object
-	    use super() or superAsSelf(). 
-	===============================================================================]]
-	function new_class:superClass()
-		return baseClass
-	end
-
-	--[[=============================================================================
-	    Returns a table that allows calling of the base class's method
-	    while maintaining the objects state as the modified state of the base
-	    class' methods. For example consider the following statements (order matters):
-
-	    -- The child sees the parents property if the child hasn't overriden the property
-	       obj:superClass().id = "parent"
-	       obj.id == "parent" -- true
-
-	    -- Setting the property on the child overrides (hides) the parents property
-	       obj.id = "child"
-	       obj.id == "child" -- true
-
-	    -- The super() method pass
-	       obj:super().id == "parent" -- true
-	       obj:super().id = "child"
-	       obj:super().id == "parent" -- still true
-	       obj.id == "child" -- still true
-	===============================================================================]]
-	function new_class:super()
-		local holder = {}
-
-		holder.child = self
-		holder.parent = baseClass
-
-		local mt = {}
-		mt.__index = function(table, index)
-			if table.parent[index] then
-				return table.parent[index]
-			else 
-				return table.child[index]
-			end
-		end
-
-		-- Only set the new values to the child.
-		mt.__newindex = function(table, key, value)
-			table.child[key] = value
-		end
-
-		mt.__tostring = function(table)
-			return tostring(table.child)
-		end
-
-		setmetatable(holder, mt)
-		return holder
-	end
-
-	new_class.new = new_class.create
-
-	--[[=============================================================================
-	    Return true if the caller is an instance of theClass
-	===============================================================================]]
-	function new_class:isa( theClass )
-		local b_isa = false
-		local cur_class = new_class
-
-		while ( nil ~= cur_class ) and ( false == b_isa ) do
-			if cur_class == theClass then
-				b_isa = true
-			else
-				cur_class = cur_class:superClass()
-			end
-		end
-
-		return b_isa
-	end
-
-	return new_class
-end
-
---[[=============================================================================
-    Inheritance unit tests
-===============================================================================]]
-function __test_inheritance()
-	local b = inheritsFrom(nil)
-
-	b.construct = function(self, msg)
-		self._msg = msg
-	end
-
-	local t = inheritsFrom(b)
-	t.construct = function(self, msg)
-		self:super():construct(msg)
-	end
-
-	t1 = t:new("t1")
-	t2 = t:new("t2")
-	assert(t1._msg == "t1", "t1 message is not equal to 't1' it''s: " .. t1._msg)
-	assert(t2._msg == "t2", "t2 message is not equal to 't2' it''s: " .. t2._msg)    
-	assert(tostring(t1:super()) ==  tostring(t1), "tostrings don't match");
-	assert(t1:superClass() == b, "superClass and baseClass should be the same. They are not.")
-
-	t1:superClass().id = "parent"
-	assert(t1.id == "parent", "obect''s super class has invalid property value: ", t1.id)
-
-	-- Setting the property on the child overrides (hides) the parents property
-	t1.id = "child"
-	assert(t1.id == "child", "object instance variable has invalid property value: " .. t1.id)
-
-	-- The super() method maintains the self pointer to the child and not to the base
-	assert(t1:super().id == "parent", "superAsSelf found invalid value for base class variable")
-	t1:super().id = "child1"
-	assert(t1:super().id == "parent", "Setting of instance variable hid base classes variable from itself");
-	assert(t1.id == "child1", "Settings of instance variable did not change child instance variable")
-end end)
 package.preload['lib.c4_log'] = (function (...)
 --[[=============================================================================
     c4_log Class
@@ -2667,6 +2432,386 @@ function __TestCreateTableTextFormatted()
 
 	print(LOG:CreateTableTextFormatted(tButtons))
 end end)
+package.preload['lib.c4_object'] = (function (...)
+--[[=============================================================================
+    c4_object Class
+
+    Copyright 2016 Control4 Corporation. All Rights Reserved.
+===============================================================================]]
+
+-- Set template version for this file
+if (TEMPLATE_VERSION ~= nil) then
+	TEMPLATE_VERSION.c4_object = "2016.01.08"
+end
+
+function inheritsFrom( baseClass )
+	local new_class = {}
+	local class_mt = { __index = new_class }
+
+	function new_class:create(...)
+		local newinst = {}
+
+		setmetatable( newinst, class_mt )
+
+		-- Call the constructor when we create this class
+		if newinst.construct then
+			-- Allow returning a different obj than self. This allows for readonly tables etc...
+			newinst = newinst:construct(...) or newinst
+		end
+
+		return newinst
+	end
+
+	if nil ~= baseClass then
+		setmetatable( new_class, { __index = baseClass } )
+	end
+
+	--[[=============================================================================
+	    Implementation of additional OO properties starts here 
+	===============================================================================]]
+	
+	-- Return the class object of the instance
+	function new_class:class()
+		return new_class
+	end
+
+	--[[=============================================================================
+	    Return the super class object of the instance. 
+
+	    Note Calling methods on the base class itself will modify
+	    the base table's static properties. In order to have call
+	    the base class' methods and have them modify the current object
+	    use super() or superAsSelf(). 
+	===============================================================================]]
+	function new_class:superClass()
+		return baseClass
+	end
+
+	--[[=============================================================================
+	    Returns a table that allows calling of the base class's method
+	    while maintaining the objects state as the modified state of the base
+	    class' methods. For example consider the following statements (order matters):
+
+	    -- The child sees the parents property if the child hasn't overriden the property
+	       obj:superClass().id = "parent"
+	       obj.id == "parent" -- true
+
+	    -- Setting the property on the child overrides (hides) the parents property
+	       obj.id = "child"
+	       obj.id == "child" -- true
+
+	    -- The super() method pass
+	       obj:super().id == "parent" -- true
+	       obj:super().id = "child"
+	       obj:super().id == "parent" -- still true
+	       obj.id == "child" -- still true
+	===============================================================================]]
+	function new_class:super()
+		local holder = {}
+
+		holder.child = self
+		holder.parent = baseClass
+
+		local mt = {}
+		mt.__index = function(table, index)
+			if table.parent[index] then
+				return table.parent[index]
+			else 
+				return table.child[index]
+			end
+		end
+
+		-- Only set the new values to the child.
+		mt.__newindex = function(table, key, value)
+			table.child[key] = value
+		end
+
+		mt.__tostring = function(table)
+			return tostring(table.child)
+		end
+
+		setmetatable(holder, mt)
+		return holder
+	end
+
+	new_class.new = new_class.create
+
+	--[[=============================================================================
+	    Return true if the caller is an instance of theClass
+	===============================================================================]]
+	function new_class:isa( theClass )
+		local b_isa = false
+		local cur_class = new_class
+
+		while ( nil ~= cur_class ) and ( false == b_isa ) do
+			if cur_class == theClass then
+				b_isa = true
+			else
+				cur_class = cur_class:superClass()
+			end
+		end
+
+		return b_isa
+	end
+
+	return new_class
+end
+
+--[[=============================================================================
+    Inheritance unit tests
+===============================================================================]]
+function __test_inheritance()
+	local b = inheritsFrom(nil)
+
+	b.construct = function(self, msg)
+		self._msg = msg
+	end
+
+	local t = inheritsFrom(b)
+	t.construct = function(self, msg)
+		self:super():construct(msg)
+	end
+
+	t1 = t:new("t1")
+	t2 = t:new("t2")
+	assert(t1._msg == "t1", "t1 message is not equal to 't1' it''s: " .. t1._msg)
+	assert(t2._msg == "t2", "t2 message is not equal to 't2' it''s: " .. t2._msg)    
+	assert(tostring(t1:super()) ==  tostring(t1), "tostrings don't match");
+	assert(t1:superClass() == b, "superClass and baseClass should be the same. They are not.")
+
+	t1:superClass().id = "parent"
+	assert(t1.id == "parent", "obect''s super class has invalid property value: ", t1.id)
+
+	-- Setting the property on the child overrides (hides) the parents property
+	t1.id = "child"
+	assert(t1.id == "child", "object instance variable has invalid property value: " .. t1.id)
+
+	-- The super() method maintains the self pointer to the child and not to the base
+	assert(t1:super().id == "parent", "superAsSelf found invalid value for base class variable")
+	t1:super().id = "child1"
+	assert(t1:super().id == "parent", "Setting of instance variable hid base classes variable from itself");
+	assert(t1.id == "child1", "Settings of instance variable did not change child instance variable")
+end end)
+package.preload['lib.c4_queue'] = (function (...)
+--[[=============================================================================
+    c4_queue Class
+
+    Copyright 2016 Control4 Corporation. All Rights Reserved.
+===============================================================================]]
+require "common.c4_driver_declarations"
+require "lib.c4_object"
+
+-- Set template version for this file
+if (TEMPLATE_VERSION ~= nil) then
+	TEMPLATE_VERSION.c4_queue = "2016.01.08"
+end
+
+c4_queue = inheritsFrom(nil)
+
+function c4_queue:construct()
+	-- entry table
+	self._et = {first = 0, last = -1}
+	self._maxSize = 0	-- no size limit
+	self._name = ""
+
+	local mt = getmetatable(self)
+	if (mt ~= nil) then
+		mt.__tostring = self.__tostring
+	end
+end
+
+function c4_queue:__tostring()
+	local tOutputString = {}
+	table.insert(tOutputString, "--- Queue ---")
+	if (not IsEmpty(self._name)) then
+		table.insert(tOutputString, "  name = " .. tostring(self._name))
+	end
+	table.insert(tOutputString, "  first = " .. tostring(self._et.first))
+	table.insert(tOutputString, "  last = " .. tostring(self._et.last))
+	table.insert(tOutputString, "  number in queue = " .. tostring(self._et.last - self._et.first + 1))
+	table.insert(tOutputString, "  maximum size = " .. self._maxSize)
+	table.insert(tOutputString, "  next value = " .. tostring(self:value()))
+	return table.concat(tOutputString, "\n")
+end
+
+
+-- push a value on the queue
+function c4_queue:push(value, ...)
+	local numItems = self._et.last - self._et.first + 1
+
+	if ((self._maxSize <= 0) or (numItems < self._maxSize) ) then
+		local last = self._et.last + 1
+		self._et.last = last
+		
+		local interval = select(1, ...)
+		local units = select(2, ...)
+		local command_name = select(3, ...)
+		self._et[last] = {["command"] = value, ["command_delay"] = interval, ["delay_units"] = units, ["command_name"] = command_name}		
+		--LogTrace ("Queue:push(), first = " .. tostring(self._et.first) .. ", last = " .. tostring(self._et.last) .. ", number in queue = " .. tostring(self._et.last - self._et.first + 1) .. ", value = " .. value)
+	else
+		-- if addToQueue == true then push value to queue
+		if (self:OnMaxSizeReached()) then
+			local last = self._et.last + 1
+			self._et.last = last
+			self._et[last] = {["command"] = value, ["command_delay"] = interval, ["delay_units"] = units, ["command_name"] = command_name}
+			--LogTrace ("Queue:push(), first = " .. tostring(self._et.first) .. ", last = " .. tostring(self._et.last) .. ", number in queue = " .. tostring(self._et.last - self._et.first + 1) .. ", value = " .. value)
+		end
+	end
+end
+
+function c4_queue:OnMaxSizeReached()
+	--LogTrace ("Max Size Reached - clear queue and push value to the queue (default).")
+	local addToQueue = true
+
+	self:clear()
+	return (addToQueue)
+end
+
+-- pop a value from the queue
+function c4_queue:pop()
+	local first = self._et.first
+
+	if first > self._et.last then
+		--LogTrace("Queue:pop(), queue is empty")
+		return ""
+	end
+
+	local value = self._et[first]
+	self._et[first] = nil        -- to allow garbage collection
+	self._et.first = first + 1
+	--LogTrace ("Queue:pop(), first = " .. tostring(self._et.first) .. ", last = " .. tostring(self._et.last) .. ", number in queue = " .. tostring(self._et.last - self._et.first + 1) .. ", value = " .. value)
+
+	return value
+end
+
+-- clear queue
+function c4_queue:clear()
+	local first = self._et.first
+
+	if first > self._et.last then
+		--LogTrace ("Queue:clear(), queue is empty")
+		return ""
+	end
+
+	self._et = {first = 0, last = -1}
+	--LogTrace ("Queue:clear(), first = " .. tostring(self._et.first) .. ", last = " .. tostring(self._et.last) .. ", number in queue = " .. tostring(self._et.last - self._et.first + 1))
+	--LogTrace (self._et)
+end
+
+-- return value of first item
+function c4_queue:value()
+	local first = self._et.first
+
+	if (first > self._et.last) then
+		return ""
+	else
+		return self._et[first]
+	end
+end
+
+-- return queue's maximum size
+function c4_queue:MaxSize()
+	return self._maxSize
+end
+
+-- return queue's maximum size
+function c4_queue:SetMaxSize(size)
+	self._maxSize = size
+end
+
+function c4_queue:SetName(name)
+	self._name = name
+end
+
+-- return the queue's current size
+function c4_queue:Size()
+	return self._et.last - self._et.first + 1
+end
+
+-- is queue empty?
+function c4_queue:empty()
+	-- print ("self._et.first = " .. tostring(self._et.first) .. ", self._et.last = " .. tostring(self._et.last))
+	if (self._et.first > self._et.last) then
+		return true
+	else
+		return false
+	end
+end
+
+--[[
+    c4_queue unit tests
+--]]
+function __test_c4_queue()
+	require "test.C4Virtual"
+	require "lib.c4_log"
+
+	local LOG = c4_log:new("test_c4_queue")
+	LOG:SetLogLevel(5)
+	LOG:OutputPrint(true)
+
+	-- create an instance of the queue
+	local c4Queue = c4_queue:new()
+
+	c4Queue:SetMaxSize(3)
+	assert(c4Queue:MaxSize() == 3, "_maxSize is not equal to '3' it is: " .. c4Queue:MaxSize())
+
+	c4Queue:push("Item #1 in Queue")
+	c4Queue:push("Item #2 in Queue")
+	c4Queue:push("Item #3 in Queue")
+	c4Queue:push("Item #4 in Queue")  -- this should cause OnMaxSizeReached() to be called and clear the queue
+	assert(c4Queue:Size() == 1, "queue size is not equal to '1' it is: " .. c4Queue:Size())
+
+	print (c4Queue)
+
+	-- Test inheritance overriding OnMaxSizeReached
+	-- Create a new class
+	c4_queue_new = inheritsFrom(c4_queue)
+
+	-- override construct()
+	function c4_queue_new:construct()
+		self.superClass():construct()  -- call base class
+		self._maxSizeOption = 1
+
+		local mt = getmetatable(self)
+		if (mt ~= nil) then
+			mt.__tostring = self.__tostring
+		end
+	end
+
+	-- override OnMaxSizeReached()
+	function c4_queue_new:OnMaxSizeReached()
+		--Default: clear queue and push value to the queue. (No need to overload,
+
+		-- Option 1: Do Nothing, new item is not added to queue
+		if (self._maxSizeOption == 1) then
+			
+			LogInfo("Max Size Reached - do nothing, new item not added to queue (option 1)")
+			return (false)
+		-- Option 2: pop value, and push new value on queue
+		elseif(self._maxSizeOption == 2) then
+			LogInfo("Max Size Reached - pop value, and push new value on queue (option 2)")
+			self:pop()
+			return (true)
+		-- Option 3: clear queue and DO NOT push new value onto queue
+		elseif(self._maxSizeOption == 3) then
+			LogInfo("Max Size Reached - clear queue and DO NOT push new value onto queue")
+			self:clear()
+			return (false)
+		end
+	end
+
+	-- create an instance of the new queue
+	local c4QueueNew = c4_queue_new:new()
+	c4QueueNew:SetMaxSize(3)
+	c4QueueNew:push("Item #1 in Queue")
+	c4QueueNew:push("Item #2 in Queue")
+	c4QueueNew:push("Item #3 in Queue")
+	c4QueueNew:push("Item #4 in Queue")  -- this should cause OnMaxSizeReached() to be called and clear the queue
+	assert(c4QueueNew:Size() == 3, "queue size is not equal to '3' it is: " .. c4QueueNew:Size())
+
+	print(c4QueueNew)
+	print ("done...")
+end end)
 package.preload['lib.c4_timer'] = (function (...)
 --[[=============================================================================
     c4_timer Class
@@ -2915,254 +3060,6 @@ function __test_c4_timer()
 	assert(c4Timer:TimerStarted() == false, "TimerStarted is not equal to false it is: " .. tostring(c4Timer:TimerStarted()))
 	assert(c4Timer:TimerStopped() == true, "TimerStopped is not equal to true it is: " .. tostring(c4Timer:TimerStopped()))
 end end)
-package.preload['lib.c4_queue'] = (function (...)
---[[=============================================================================
-    c4_queue Class
-
-    Copyright 2016 Control4 Corporation. All Rights Reserved.
-===============================================================================]]
-require "common.c4_driver_declarations"
-require "lib.c4_object"
-
--- Set template version for this file
-if (TEMPLATE_VERSION ~= nil) then
-	TEMPLATE_VERSION.c4_queue = "2016.01.08"
-end
-
-c4_queue = inheritsFrom(nil)
-
-function c4_queue:construct()
-	-- entry table
-	self._et = {first = 0, last = -1}
-	self._maxSize = 0	-- no size limit
-	self._name = ""
-
-	local mt = getmetatable(self)
-	if (mt ~= nil) then
-		mt.__tostring = self.__tostring
-	end
-end
-
-function c4_queue:__tostring()
-	local tOutputString = {}
-	table.insert(tOutputString, "--- Queue ---")
-	if (not IsEmpty(self._name)) then
-		table.insert(tOutputString, "  name = " .. tostring(self._name))
-	end
-	table.insert(tOutputString, "  first = " .. tostring(self._et.first))
-	table.insert(tOutputString, "  last = " .. tostring(self._et.last))
-	table.insert(tOutputString, "  number in queue = " .. tostring(self._et.last - self._et.first + 1))
-	table.insert(tOutputString, "  maximum size = " .. self._maxSize)
-	table.insert(tOutputString, "  next value = " .. tostring(self:value()))
-	return table.concat(tOutputString, "\n")
-end
-
-
--- push a value on the queue
-function c4_queue:push(value, ...)
-	local numItems = self._et.last - self._et.first + 1
-
-	if ((self._maxSize <= 0) or (numItems < self._maxSize) ) then
-		local last = self._et.last + 1
-		self._et.last = last
-		
-		local interval = select(1, ...)
-		local units = select(2, ...)
-		local command_name = select(3, ...)
-		self._et[last] = {["command"] = value, ["command_delay"] = interval, ["delay_units"] = units, ["command_name"] = command_name}		
-		--LogTrace ("Queue:push(), first = " .. tostring(self._et.first) .. ", last = " .. tostring(self._et.last) .. ", number in queue = " .. tostring(self._et.last - self._et.first + 1) .. ", value = " .. value)
-	else
-		-- if addToQueue == true then push value to queue
-		if (self:OnMaxSizeReached()) then
-			local last = self._et.last + 1
-			self._et.last = last
-			self._et[last] = {["command"] = value, ["command_delay"] = interval, ["delay_units"] = units, ["command_name"] = command_name}
-			--LogTrace ("Queue:push(), first = " .. tostring(self._et.first) .. ", last = " .. tostring(self._et.last) .. ", number in queue = " .. tostring(self._et.last - self._et.first + 1) .. ", value = " .. value)
-		end
-	end
-end
-
-function c4_queue:OnMaxSizeReached()
-	--LogTrace ("Max Size Reached - clear queue and push value to the queue (default).")
-	local addToQueue = true
-
-	self:clear()
-	return (addToQueue)
-end
-
--- pop a value from the queue
-function c4_queue:pop()
-	local first = self._et.first
-
-	if first > self._et.last then
-		--LogTrace("Queue:pop(), queue is empty")
-		return ""
-	end
-
-	local value = self._et[first]
-	self._et[first] = nil        -- to allow garbage collection
-	self._et.first = first + 1
-	--LogTrace ("Queue:pop(), first = " .. tostring(self._et.first) .. ", last = " .. tostring(self._et.last) .. ", number in queue = " .. tostring(self._et.last - self._et.first + 1) .. ", value = " .. value)
-
-	return value
-end
-
--- clear queue
-function c4_queue:clear()
-	local first = self._et.first
-
-	if first > self._et.last then
-		--LogTrace ("Queue:clear(), queue is empty")
-		return ""
-	end
-
-	self._et = {first = 0, last = -1}
-	--LogTrace ("Queue:clear(), first = " .. tostring(self._et.first) .. ", last = " .. tostring(self._et.last) .. ", number in queue = " .. tostring(self._et.last - self._et.first + 1))
-	--LogTrace (self._et)
-end
-
--- return value of first item
-function c4_queue:value()
-	local first = self._et.first
-
-	if (first > self._et.last) then
-		return ""
-	else
-		return self._et[first]
-	end
-end
-
--- return queue's maximum size
-function c4_queue:MaxSize()
-	return self._maxSize
-end
-
--- return queue's maximum size
-function c4_queue:SetMaxSize(size)
-	self._maxSize = size
-end
-
-function c4_queue:SetName(name)
-	self._name = name
-end
-
--- return the queue's current size
-function c4_queue:Size()
-	return self._et.last - self._et.first + 1
-end
-
--- is queue empty?
-function c4_queue:empty()
-	-- print ("self._et.first = " .. tostring(self._et.first) .. ", self._et.last = " .. tostring(self._et.last))
-	if (self._et.first > self._et.last) then
-		return true
-	else
-		return false
-	end
-end
-
---[[
-    c4_queue unit tests
---]]
-function __test_c4_queue()
-	require "test.C4Virtual"
-	require "lib.c4_log"
-
-	local LOG = c4_log:new("test_c4_queue")
-	LOG:SetLogLevel(5)
-	LOG:OutputPrint(true)
-
-	-- create an instance of the queue
-	local c4Queue = c4_queue:new()
-
-	c4Queue:SetMaxSize(3)
-	assert(c4Queue:MaxSize() == 3, "_maxSize is not equal to '3' it is: " .. c4Queue:MaxSize())
-
-	c4Queue:push("Item #1 in Queue")
-	c4Queue:push("Item #2 in Queue")
-	c4Queue:push("Item #3 in Queue")
-	c4Queue:push("Item #4 in Queue")  -- this should cause OnMaxSizeReached() to be called and clear the queue
-	assert(c4Queue:Size() == 1, "queue size is not equal to '1' it is: " .. c4Queue:Size())
-
-	print (c4Queue)
-
-	-- Test inheritance overriding OnMaxSizeReached
-	-- Create a new class
-	c4_queue_new = inheritsFrom(c4_queue)
-
-	-- override construct()
-	function c4_queue_new:construct()
-		self.superClass():construct()  -- call base class
-		self._maxSizeOption = 1
-
-		local mt = getmetatable(self)
-		if (mt ~= nil) then
-			mt.__tostring = self.__tostring
-		end
-	end
-
-	-- override OnMaxSizeReached()
-	function c4_queue_new:OnMaxSizeReached()
-		--Default: clear queue and push value to the queue. (No need to overload,
-
-		-- Option 1: Do Nothing, new item is not added to queue
-		if (self._maxSizeOption == 1) then
-			
-			LogInfo("Max Size Reached - do nothing, new item not added to queue (option 1)")
-			return (false)
-		-- Option 2: pop value, and push new value on queue
-		elseif(self._maxSizeOption == 2) then
-			LogInfo("Max Size Reached - pop value, and push new value on queue (option 2)")
-			self:pop()
-			return (true)
-		-- Option 3: clear queue and DO NOT push new value onto queue
-		elseif(self._maxSizeOption == 3) then
-			LogInfo("Max Size Reached - clear queue and DO NOT push new value onto queue")
-			self:clear()
-			return (false)
-		end
-	end
-
-	-- create an instance of the new queue
-	local c4QueueNew = c4_queue_new:new()
-	c4QueueNew:SetMaxSize(3)
-	c4QueueNew:push("Item #1 in Queue")
-	c4QueueNew:push("Item #2 in Queue")
-	c4QueueNew:push("Item #3 in Queue")
-	c4QueueNew:push("Item #4 in Queue")  -- this should cause OnMaxSizeReached() to be called and clear the queue
-	assert(c4QueueNew:Size() == 3, "queue size is not equal to '3' it is: " .. c4QueueNew:Size())
-
-	print(c4QueueNew)
-	print ("done...")
-end end)
-package.preload['actions'] = (function (...)
---[[=============================================================================
-    Lua Action Code
-
-    Copyright 2016 Control4 Corporation. All Rights Reserved.
-===============================================================================]]
-
--- This macro is utilized to identify the version string of the driver template version used.
-if (TEMPLATE_VERSION ~= nil) then
-	TEMPLATE_VERSION.actions = "2016.01.08"
-end
-
--- TODO: Create a function for each action defined in the driver
-
-function LUA_ACTION.TemplateVersion()
-	TemplateVersion()
-end
-
-
-
-function LUA_ACTION.Sync()
-     print("sync device")
-     local devid = C4:GetDeviceID()
-	local dest_id = C4:GetBoundProviderDevice(devid,1) 
-	print("Id is " .. dest_id)
-	C4:SendToDevice(dest_id,"SYNCDEV",{DEVICE_ID = devid})
-end
- end)
 package.preload['lib.c4_xml'] = (function (...)
 --[[=============================================================================
     Functions for parsing and managing xml
@@ -3399,6 +3296,34 @@ function AddElement(tag, data)
 	return "<" .. tag .. ">" .. data .. "</" .. tag .. ">"
 end
  end)
+package.preload['actions'] = (function (...)
+--[[=============================================================================
+    Lua Action Code
+
+    Copyright 2016 Control4 Corporation. All Rights Reserved.
+===============================================================================]]
+
+-- This macro is utilized to identify the version string of the driver template version used.
+if (TEMPLATE_VERSION ~= nil) then
+	TEMPLATE_VERSION.actions = "2016.01.08"
+end
+
+-- TODO: Create a function for each action defined in the driver
+
+function LUA_ACTION.TemplateVersion()
+	TemplateVersion()
+end
+
+
+
+function LUA_ACTION.Sync()
+     print("sync device")
+     local devid = C4:GetDeviceID()
+	local dest_id = C4:GetBoundProviderDevice(devid,1) 
+	print("Id is " .. dest_id)
+	C4:SendToDevice(dest_id,"SYNCDEV",{DEVICE_ID = devid})
+end
+ end)
 package.preload['connections'] = (function (...)
 --[[=============================================================================
     Functions for managing the status of the drivers bindings and connection state
@@ -3422,7 +3347,7 @@ COM_COMMAND_RESPONSE_TIMEOUT_SECONDS = 4
 
 NETWORK_PORT = 60000
 IR_BINDING_ID = 2
-SERIAL_BINDING_ID = 1
+BUS_BINDING_ID = 1
 NETWORK_BINDING_ID = 6001
 
 --[[=============================================================================
@@ -3574,63 +3499,6 @@ function SendKeepAlivePollingCommand()
 end
 
  end)
-package.preload['properties'] = (function (...)
---[[=============================================================================
-    Properties Code
-
-    Copyright 2017 Control4 Corporation. All Rights Reserved.
-===============================================================================]]
-
--- This macro is utilized to identify the version string of the driver template version used.
-if (TEMPLATE_VERSION ~= nil) then
-	TEMPLATE_VERSION.properties = "2017.01.13"
-end
-
-function ON_PROPERTY_CHANGED.DeviceID(propertyValue)
-   gKeypadProxy._SyncDevid = tonumber(propertyValue)
-end
-
---[[
-function ON_PROPERTY_CHANGED.MJPEGStreamID(propertyValue)
-	gCameraProxy._MJPEG_Stream_ID = tonumber(propertyValue)
-end
-
-function ON_PROPERTY_CHANGED.MJPEGStreamProfile(propertyValue)
-	gCameraProxy._MJPEG_Stream_Profile = propertyValue
-end
-
-function ON_PROPERTY_CHANGED.H264StreamID(propertyValue)
-	gCameraProxy._H264_Stream_ID = tonumber(propertyValue)
-end
-
-function ON_PROPERTY_CHANGED.H264720pStreamID(propertyValue)
-	gCameraProxy._H264_720p_Stream_ID = tonumber(propertyValue)
-end
-
-function ON_PROPERTY_CHANGED.H2641080pStreamID(propertyValue)
-	gCameraProxy._H264_1080p_Stream_ID = tonumber(propertyValue)
-end
-
-function ON_PROPERTY_CHANGED.H2644KStreamID(propertyValue)
-	gCameraProxy._H264_4K_Stream_ID = tonumber(propertyValue)
-end
-
-function ON_PROPERTY_CHANGED.H264StreamProfile(propertyValue)
-	gCameraProxy._H264_Stream_Profile = propertyValue
-end
-
-function ON_PROPERTY_CHANGED.H264720pStreamProfile(propertyValue)
-	gCameraProxy._H264_720p_Stream_Profile = propertyValue
-end
-
-function ON_PROPERTY_CHANGED.H2641080pStreamProfile(propertyValue)
-	gCameraProxy._H264_1080p_Stream_Profile = propertyValue
-end
-
-function ON_PROPERTY_CHANGED.H2644KStreamProfile(propertyValue)
-	gCameraProxy._H264_4K_Stream_Profile = propertyValue
-end
-]] end)
 package.preload['device_messages'] = (function (...)
 --[[=============================================================================
     Get, Handle and Dispatch message functions
@@ -3641,6 +3509,72 @@ package.preload['device_messages'] = (function (...)
 -- This macro is utilized to identify the version string of the driver template version used.
 if (TEMPLATE_VERSION ~= nil) then
 	TEMPLATE_VERSION.device_messages = "2016.01.08"
+end
+
+aucCRCHi = {
+    0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41,
+    0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40,
+    0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41,
+    0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41,
+    0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41,
+    0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40,
+    0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40,
+    0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40,
+    0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41,
+    0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40,
+    0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41,
+    0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41,
+    0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41,
+    0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41,
+    0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41,
+    0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41,
+    0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41,
+    0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40,
+    0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41,
+    0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41,
+    0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41,
+    0x00, 0xC1, 0x81, 0x40
+}
+
+aucCRCLo = {
+    0x00, 0xC0, 0xC1, 0x01, 0xC3, 0x03, 0x02, 0xC2, 0xC6, 0x06, 0x07, 0xC7,
+    0x05, 0xC5, 0xC4, 0x04, 0xCC, 0x0C, 0x0D, 0xCD, 0x0F, 0xCF, 0xCE, 0x0E,
+    0x0A, 0xCA, 0xCB, 0x0B, 0xC9, 0x09, 0x08, 0xC8, 0xD8, 0x18, 0x19, 0xD9,
+    0x1B, 0xDB, 0xDA, 0x1A, 0x1E, 0xDE, 0xDF, 0x1F, 0xDD, 0x1D, 0x1C, 0xDC,
+    0x14, 0xD4, 0xD5, 0x15, 0xD7, 0x17, 0x16, 0xD6, 0xD2, 0x12, 0x13, 0xD3,
+    0x11, 0xD1, 0xD0, 0x10, 0xF0, 0x30, 0x31, 0xF1, 0x33, 0xF3, 0xF2, 0x32,
+    0x36, 0xF6, 0xF7, 0x37, 0xF5, 0x35, 0x34, 0xF4, 0x3C, 0xFC, 0xFD, 0x3D,
+    0xFF, 0x3F, 0x3E, 0xFE, 0xFA, 0x3A, 0x3B, 0xFB, 0x39, 0xF9, 0xF8, 0x38,
+    0x28, 0xE8, 0xE9, 0x29, 0xEB, 0x2B, 0x2A, 0xEA, 0xEE, 0x2E, 0x2F, 0xEF,
+    0x2D, 0xED, 0xEC, 0x2C, 0xE4, 0x24, 0x25, 0xE5, 0x27, 0xE7, 0xE6, 0x26,
+    0x22, 0xE2, 0xE3, 0x23, 0xE1, 0x21, 0x20, 0xE0, 0xA0, 0x60, 0x61, 0xA1,
+    0x63, 0xA3, 0xA2, 0x62, 0x66, 0xA6, 0xA7, 0x67, 0xA5, 0x65, 0x64, 0xA4,
+    0x6C, 0xAC, 0xAD, 0x6D, 0xAF, 0x6F, 0x6E, 0xAE, 0xAA, 0x6A, 0x6B, 0xAB,
+    0x69, 0xA9, 0xA8, 0x68, 0x78, 0xB8, 0xB9, 0x79, 0xBB, 0x7B, 0x7A, 0xBA,
+    0xBE, 0x7E, 0x7F, 0xBF, 0x7D, 0xBD, 0xBC, 0x7C, 0xB4, 0x74, 0x75, 0xB5,
+    0x77, 0xB7, 0xB6, 0x76, 0x72, 0xB2, 0xB3, 0x73, 0xB1, 0x71, 0x70, 0xB0,
+    0x50, 0x90, 0x91, 0x51, 0x93, 0x53, 0x52, 0x92, 0x96, 0x56, 0x57, 0x97,
+    0x55, 0x95, 0x94, 0x54, 0x9C, 0x5C, 0x5D, 0x9D, 0x5F, 0x9F, 0x9E, 0x5E,
+    0x5A, 0x9A, 0x9B, 0x5B, 0x99, 0x59, 0x58, 0x98, 0x88, 0x48, 0x49, 0x89,
+    0x4B, 0x8B, 0x8A, 0x4A, 0x4E, 0x8E, 0x8F, 0x4F, 0x8D, 0x4D, 0x4C, 0x8C,
+    0x44, 0x84, 0x85, 0x45, 0x87, 0x47, 0x46, 0x86, 0x82, 0x42, 0x43, 0x83,
+    0x41, 0x81, 0x80, 0x40
+}
+--[[=============================================================================
+Used to CRC16/Modbus checkout
+===============================================================================]]
+function usMBCRC16(pucFrame,usLen)
+    local ucCRCHi = 0xFF
+    local ucCRCLo = 0xFF
+    local iIndex
+    for i = 1,usLen
+    do
+	iIndex = bit.bxor(ucCRCLo,string.byte(pucFrame,i))
+	ucCRCLo = bit.bxor(ucCRCHi,aucCRCHi[iIndex+1])
+       ucCRCHi = aucCRCLo[iIndex+1]
+    end
+	local crcnum = bit.bor(bit.lshift(ucCRCHi,8),ucCRCLo)
+	return crcnum
 end
 
 --[[=============================================================================
@@ -3750,313 +3684,6 @@ function DispatchMessage(MsgKey, MsgData)
 	end
 end
  end)
-package.preload['keypad.keypad_proxy_class'] = (function (...)
---[[=============================================================================
-    Keypad Proxy Class
-
-    Copyright 2018 Hiwise Corporation. All Rights Reserved.
-===============================================================================]]
-
--- This macro is utilized to identify the version string of the driver template version used.
-if (TEMPLATE_VERSION ~= nil) then
-	TEMPLATE_VERSION.keypad_proxy_class = "2018.05.23"
-end
-
-KeypadProxy = inheritsFrom(nil)
-
-function KeypadProxy:construct(bindingID)
-	-- member variables
-	self._BindingID = bindingID
-
-	self:Initialize()
-
-end
-
-function KeypadProxy:Initialize()
-	-- create and initialize member variables
-    self._PackLen = 8
-	self._SyncDevid = Properties["DeviceID"]
-	self._SyncMode = false
-end
-
-function KeypadProxy:dev_Newbuttoncreate(buttonid,buttonname)
-	local new_button = {}
-     new_button.BUTTON_ID = buttonid
-	new_button.NAME = buttonname
-	new_button.LOCK_COLORS = true
-
-	NOTIFY.NEW_KEYPAD_BUTTON(self._BindingID, new_button)
-end
-
-function KeypadProxy:HandleMessage(message,msglen)
-    LogTrace("EX_CMD.RECVMSG")
-    hexdump(message)
-    if(#message ~= self._PackLen) then
-        return nil
-    else
-        local msg_data = {}
-        for i = 1,#message do
-    	    msg_data[i] = string.byte(message,i)
-    	    print(i .. ":" .. msg_data[i])
-        end
-        if(msg_data[1] == 0x55 and msg_data[2] == 0x2a and msg_data[3] == 0x30) then
-            local sum = 0
-		    for i = 1,7 do
-		        sum = sum + msg_data[i]
-		    end
-		    if(bit.band(sum,0xff) == msg_data[8]) then
-		        local dev_id = bit.band(msg_data[4],0xf8)/8
-			    local btn_id = bit.band(msg_data[4],0x07)
-			    LogTrace("dev_id = %d btn_id = %d", dev_id,btn_id)
-			    if(dev_id == self._SyncDevid) then
-			        self:ButtonPressed(btn_id)
-			    end
-		    end
-		else
-		    return nil
-        end
-    end
-end
-
-function KeypadProxy:ButtonPressed(buttonid)
-    LogTrace("KeypadProxy:ButtonPressed")
-    local cmd = {}
-    cmd.BUTTON_ID = buttonid
-    cmd.ACTION = 1
-    NOTIFY.KEYPAD_BUTTON_ACTION(self._BindingID,cmd)
-    cmd.ACTION = 2
-    NOTIFY.KEYPAD_BUTTON_ACTION(self._BindingID,cmd)
-end
-
---[[=============================================================================
-    KeypadProxy Proxy Commands(PRX_CMD)
-===============================================================================]]
-function KeypadProxy:prx_KEYPAD_BUTTON_ACTION(tParams)
-    tParams = tParams or {}
-    local cmd = {}
-    local btnid = tParams["BUTTON_ID"]
-    local action = tParams["ACTION"]
-    print("btnid = ".. btnid .."action = "..action .. "typeof action = " .. type(action))
-    cmd.BUTTON_ID = btnid
-    cmd.ACTION = action
-    NOTIFY.KEYPAD_BUTTON_ACTION(self._BindingID,cmd)
-    
-end
-
---[[=============================================================================
-    Camera Proxy Commands(PRX_CMD)
-===============================================================================]]
---[[
-function CameraProxy:prx_SET_ADDRESS(tParams)
-	tParams = tParams or {}
-	self._Address = tParams["ADDRESS"] or self._Address
-end
-
-function CameraProxy:prx_SET_ADDRESS(tParams)
-	tParams = tParams or {}
-	self._Address = tParams["ADDRESS"] or self._Address
-end
-]]
-
-
-
---[[=============================================================================
-    Camera Proxy UIRequests
-===============================================================================]]
---[[
-	Return the query string required for an HTTP image push URL request.
---]]
---[[
-function CameraProxy:req_GET_SNAPSHOT_QUERY_STRING(tParams)
-	tParams = tParams or {}
-    local size_x = tonumber(tParams["SIZE_X"]) or 640
-    local size_y = tonumber(tParams["SIZE_Y"]) or 480
-
-	return "<snapshot_query_string>" .. C4:XmlEscapeString(GET_SNAPSHOT_QUERY_STRING(size_x, size_y)) .. "</snapshot_query_string>"
-end
-
-]]
-
---[[=============================================================================
-    Camera Proxy Notifies
-===============================================================================]]
---[[
-function CameraProxy:dev_PropertyDefaults()
-	local property_defaults = {}
-	property_defaults.HTTP_PORT = C4:GetCapability("default_http_port") or 80
-	property_defaults.RTSP_PORT = C4:GetCapability("default_rtsp_port") or 554
-	property_defaults.AUTHENTICATION_REQUIRED = C4:GetCapability("default_authentication_required") or true
-	property_defaults.AUTHENTICATION_TYPE = C4:GetCapability("default_authentication_type") or "BASIC"
-	property_defaults.USERNAME = C4:GetCapability("default_username") or "username"
-	property_defaults.PASSWORD = C4:GetCapability("default_password") or "password"
-
-	NOTIFY.PROPERTY_DEFAULTS(self._BindingID, property_defaults)
-end
-
-]]
---[[=============================================================================
-    Camera Proxy Functions
-===============================================================================]]
--- Create class functions required by the class
---[[
-function CameraProxy:BuildHTTPURL(queryString)
-	local httpUrl = ""
-	
-	if ((queryString ~= nil) and (string.len(queryString) > 0)) then
-		httpUrl = "http://" .. self._Address .. ":" .. self._HttpPort .. "/" .. queryString
-	end
-	
-	return httpUrl
-end
-
-]]
-
-
- end)
-package.preload['keypad.keypad_proxy_commands'] = (function (...)
---[[=============================================================================
-    Command Functions Received From Proxy to the Camera Driver
-
-    Copyright 2018 Hiwise Corporation. All Rights Reserved.
-===============================================================================]]
-
--- This macro is utilized to identify the version string of the driver template version used.
-if (TEMPLATE_VERSION ~= nil) then
-	TEMPLATE_VERSION.keypad_proxy_commands = "2018.05.23"
-end
-
---[[
-function PRX_CMD.BUTTON_ACTION(idBinding, tParams)
-	gKeypadProxy:prx_BUTTON_ACTION(tParams)
-end
-]]
-function PRX_CMD.KEYPAD_BUTTON_ACTION(idBinding, tParams)
-	gKeypadProxy:prx_KEYPAD_BUTTON_ACTION(tParams)
-end
---[[
-function PRX_CMD.SET_ADDRESS(idBinding, tParams)
-	gCameraProxy:prx_SET_ADDRESS(tParams)
-end
-
-function PRX_CMD.SET_HTTP_PORT(idBinding, tParams)
-	gCameraProxy:prx_SET_HTTP_PORT(tParams)
-end
-
-function PRX_CMD.SET_RTSP_PORT(idBinding, tParams)
-	gCameraProxy:prx_SET_RTSP_PORT(tParams)
-end
-
-function PRX_CMD.SET_AUTHENTICATION_REQUIRED(idBinding, tParams)
-	gCameraProxy:prx_SET_AUTHENTICATION_REQUIRED(tParams)
-end
-
-function PRX_CMD.SET_AUTHENTICATION_TYPE(idBinding, tParams)
-	gCameraProxy:prx_SET_AUTHENTICATION_TYPE(tParams)
-end
-
-function PRX_CMD.SET_USERNAME(idBinding, tParams)
-	gCameraProxy:prx_SET_USERNAME(tParams)
-end
-
-function PRX_CMD.SET_PASSWORD(idBinding, tParams)
-	gCameraProxy:prx_SET_PASSWORD(tParams)
-end
-
-function PRX_CMD.SET_PUBLICLY_ACCESSIBLE(idBinding, tParams)
-	gCameraProxy:prx_SET_PUBLICLY_ACCESSIBLE(tParams)
-end
-
-function PRX_CMD.PAN_LEFT(idBinding, tParams)
-	gCameraProxy:prx_PAN_LEFT()
-end
-
-function PRX_CMD.PAN_RIGHT(idBinding, tParams)
-	gCameraProxy:prx_PAN_RIGHT()
-end
-
-function PRX_CMD.PAN_SCAN(idBinding, tParams)
-	gCameraProxy:prx_PAN_SCAN()
-end
-
-function PRX_CMD.TILT_UP(idBinding, tParams)
-	gCameraProxy:prx_TILT_UP()
-end
-
-function PRX_CMD.TILT_DOWN(idBinding, tParams)
-	gCameraProxy:prx_TILT_DOWN()
-end
-
-function PRX_CMD.TILT_SCAN(idBinding, tParams)
-	gCameraProxy:prx_TILT_SCAN()
-end
-
-function PRX_CMD.ZOOM_IN(idBinding, tParams)
-	gCameraProxy:prx_ZOOM_IN()
-end
-
-function PRX_CMD.ZOOM_OUT(idBinding, tParams)
-	gCameraProxy:prx_ZOOM_OUT()
-end
-
-function PRX_CMD.HOME(idBinding, tParams)
-	gCameraProxy:prx_HOME()
-end
-
-function PRX_CMD.MOVE_TO(idBinding, tParams)
-	gCameraProxy:prx_MOVE_TO(tParams)
-end
-
-function PRX_CMD.PRESET(idBinding, tParams)
-	gCameraProxy:prx_PRESET(tParams)
-end
-
-
--- UI Requests
-function UI_REQ.GET_SNAPSHOT_QUERY_STRING(tParams)
-	return gCameraProxy:req_GET_SNAPSHOT_QUERY_STRING(tParams)
-end
-
-function UI_REQ.GET_MJPEG_QUERY_STRING(tParams)
-	return gCameraProxy:req_GET_MJPEG_QUERY_STRING(tParams)
-end
-
-function UI_REQ.GET_RTSP_H264_QUERY_STRING(tParams)
-	return gCameraProxy:req_GET_RTSP_H264_QUERY_STRING(tParams)
-end
-
-]] end)
-package.preload['keypad.keypad_proxy_notifies'] = (function (...)
---[[=============================================================================
-    Notification Functions
-
-    Copyright 2016 Control4 Corporation. All Rights Reserved.
-===============================================================================]]
-
--- This macro is utilized to identify the version string of the driver template version used.
-if (TEMPLATE_VERSION ~= nil) then
-	TEMPLATE_VERSION.keypad_proxy_notifies = "2018.05.23"
-end
-
-function NOTIFY.NEW_KEYPAD_BUTTON(bindingID,newbutton)
-     LogTrace("NOTIFY.NEW_KEYPAD_BUTTON")
-	print("bindingID = ".. bindingID)
-     SendNotify("NEW_KEYPAD_BUTTON", newbutton, bindingID)
-end
-
-function NOTIFY.KEYPAD_BUTTON_ACTION(bindingID,cmd)
-     LogTrace("KEYPAD_BUTTON_ACTION")
-	print("bindingID = ".. bindingID) 
-     SendNotify("KEYPAD_BUTTON_ACTION", cmd, bindingID)
-end
-
---[[
-function NOTIFY.PROPERTY_DEFAULTS(bindingID, tPropertyDefaults)
-	LogTrace("NOTIFY.PROPERTY_DEFAULTS")
-
-	SendNotify("PROPERTY_DEFAULTS", tPropertyDefaults, bindingID)
-end
-]]
- end)
 package.preload['device_specific_commands'] = (function (...)
 --[[=============================================================================
     Copyright 2016 Control4 Corporation. All Rights Reserved.
@@ -4117,6 +3744,63 @@ function EX_CMD.RECVMSG(tParams)
 	    gKeypadProxy:HandleMessage(tmp_msg,msglen)
 	end
 end end)
+package.preload['properties'] = (function (...)
+--[[=============================================================================
+    Properties Code
+
+    Copyright 2017 Control4 Corporation. All Rights Reserved.
+===============================================================================]]
+
+-- This macro is utilized to identify the version string of the driver template version used.
+if (TEMPLATE_VERSION ~= nil) then
+	TEMPLATE_VERSION.properties = "2017.01.13"
+end
+
+function ON_PROPERTY_CHANGED.DeviceID(propertyValue)
+   gKeypadProxy._SyncDevid = tonumber(propertyValue)
+end
+
+--[[
+function ON_PROPERTY_CHANGED.MJPEGStreamID(propertyValue)
+	gCameraProxy._MJPEG_Stream_ID = tonumber(propertyValue)
+end
+
+function ON_PROPERTY_CHANGED.MJPEGStreamProfile(propertyValue)
+	gCameraProxy._MJPEG_Stream_Profile = propertyValue
+end
+
+function ON_PROPERTY_CHANGED.H264StreamID(propertyValue)
+	gCameraProxy._H264_Stream_ID = tonumber(propertyValue)
+end
+
+function ON_PROPERTY_CHANGED.H264720pStreamID(propertyValue)
+	gCameraProxy._H264_720p_Stream_ID = tonumber(propertyValue)
+end
+
+function ON_PROPERTY_CHANGED.H2641080pStreamID(propertyValue)
+	gCameraProxy._H264_1080p_Stream_ID = tonumber(propertyValue)
+end
+
+function ON_PROPERTY_CHANGED.H2644KStreamID(propertyValue)
+	gCameraProxy._H264_4K_Stream_ID = tonumber(propertyValue)
+end
+
+function ON_PROPERTY_CHANGED.H264StreamProfile(propertyValue)
+	gCameraProxy._H264_Stream_Profile = propertyValue
+end
+
+function ON_PROPERTY_CHANGED.H264720pStreamProfile(propertyValue)
+	gCameraProxy._H264_720p_Stream_Profile = propertyValue
+end
+
+function ON_PROPERTY_CHANGED.H2641080pStreamProfile(propertyValue)
+	gCameraProxy._H264_1080p_Stream_Profile = propertyValue
+end
+
+function ON_PROPERTY_CHANGED.H2644KStreamProfile(propertyValue)
+	gCameraProxy._H264_4K_Stream_Profile = propertyValue
+end
+]] end)
 package.preload['proxy_commands'] = (function (...)
 --[[=============================================================================
     Commands received from the camera proxy (ReceivedFromProxy)
@@ -4318,6 +4002,150 @@ function GET_RTSP_H264_QUERY_STRING(size_x, size_y, period)
 end
 ]]
  end)
+package.preload['common.c4_command'] = (function (...)
+--[[=============================================================================
+    Functions for handling and executing commands and actions
+
+    Copyright 2016 Control4 Corporation. All Rights Reserved.
+===============================================================================]]
+require "common.c4_driver_declarations"
+
+-- Set template version for this file
+if (TEMPLATE_VERSION ~= nil) then
+	TEMPLATE_VERSION.c4_command = "2016.01.08"
+end
+
+--[[=============================================================================
+    ExecuteCommand(sCommand, tParams)
+
+    Description
+    Function called by Director when a command is received for this DriverWorks
+    driver. This includes commands created in Composer programming.
+
+    Parameters
+    sCommand(string) - Command to be sent
+    tParams(table)   - Lua table of parameters for the sent command
+
+    Returns
+    Nothing
+===============================================================================]]
+function ExecuteCommand(sCommand, tParams)
+	LogTrace("ExecuteCommand(" .. sCommand .. ")")
+	LogInfo(tParams)
+
+	-- Remove any spaces (trim the command)
+	local trimmedCommand = string.gsub(sCommand, " ", "")
+	local status, ret
+
+	-- if function exists then execute (non-stripped)
+	if (EX_CMD[sCommand] ~= nil and type(EX_CMD[sCommand]) == "function") then
+		status, ret = pcall(EX_CMD[sCommand], tParams)
+	-- elseif trimmed function exists then execute
+	elseif (EX_CMD[trimmedCommand] ~= nil and type(EX_CMD[trimmedCommand]) == "function") then
+		status, ret = pcall(EX_CMD[trimmedCommand], tParams)
+	elseif (EX_CMD[sCommand] ~= nil) then
+		QueueCommand(EX_CMD[sCommand])
+		status = true
+	else
+		LogInfo("ExecuteCommand: Unhandled command = " .. sCommand)
+		status = true
+	end
+	
+	if (not status) then
+		LogError("LUA_ERROR: " .. ret)
+	end
+	
+	return ret -- Return whatever the function returns because it might be xml, a return code, and so on
+end
+
+--[[=============================================================================
+    EX_CMD.LUA_ACTION(tParams)
+
+    Description
+    Function called for any actions executed by the user from the Actions Tab
+    in Composer.
+
+    Parameters
+    tParams(table) - Lua table of parameters for the command option
+
+    Returns
+    Nothing
+===============================================================================]]
+function EX_CMD.LUA_ACTION(tParams)
+	if (tParams ~= nil) then
+		for cmd, cmdv in pairs(tParams) do
+			if (cmd == "ACTION" and cmdv ~= nil) then
+				local status, err = pcall(LUA_ACTION[cmdv], tParams)
+				if (not status) then
+					LogError("LUA_ERROR: " .. err)
+				end
+				break
+			end
+		end
+	end
+end
+
+--[[=============================================================================
+    ReceivedFromProxy(idBinding, sCommand, tParams)
+
+    Description
+    Function called for any actions executed by the user from the Actions Tab
+    in Composer.
+
+    Parameters
+    idBinding(int)   - Binding ID of the proxy that sent a BindMessage to the
+                       DriverWorks driver.
+    sCommand(string) - Command that was sent
+    tParams(table)   - Lua table of received command parameters
+
+    Returns
+    Nothing
+===============================================================================]]
+function ReceivedFromProxy(idBinding, sCommand, tParams)
+
+	if (sCommand ~= nil) then
+
+		-- initial table variable if nil
+		if (tParams == nil) then
+			tParams = {}
+		end
+		
+		LogTrace("ReceivedFromProxy(): " .. sCommand .. " on binding " .. idBinding .. "; Call Function PRX_CMD." .. sCommand .. "()")
+		LogInfo(tParams)
+
+		if ((PRX_CMD[sCommand]) ~= nil) then
+			local status, err = pcall(PRX_CMD[sCommand], idBinding, tParams)
+			if (not status) then
+				LogError("LUA_ERROR: " .. err)
+			end
+		else
+			LogInfo("ReceivedFromProxy: Unhandled command = " .. sCommand)
+		end
+	end
+end
+
+--[[
+	This function is called when a UI (Navigator) requests data, and
+	calls the function requested.
+--]]
+function UIRequest(sRequest, tParams)
+	local ret = ""
+
+	if (sRequest ~= nil) then
+		tParams = tParams or {}   -- initial table variable if nil
+		LogTrace("UIRequest(): " .. sRequest .. "; Call Function UI_REQ." .. sRequest .. "()")
+		LogInfo(tParams)
+
+		if (UI_REQ[sRequest]) ~= nil then
+			ret = UI_REQ[sRequest](tParams)
+		else
+			LogWarn("UIRequest: Unhandled request = " .. sRequest)
+		end
+	end
+
+	return ret
+end
+ end)
 package.preload['proxy_init'] = (function (...)
 --[[=============================================================================
     Initialization Functions
@@ -4354,6 +4182,244 @@ function ON_DRIVER_LATEINIT.proxy_init()
 	gKeypadProxy:dev_Newbuttoncreate(6,"button6")
 	
 end
+
+
+ end)
+package.preload['keypad.keypad_proxy_class'] = (function (...)
+--[[=============================================================================
+    Keypad Proxy Class
+
+    Copyright 2018 Hiwise Corporation. All Rights Reserved.
+===============================================================================]]
+
+-- This macro is utilized to identify the version string of the driver template version used.
+if (TEMPLATE_VERSION ~= nil) then
+	TEMPLATE_VERSION.keypad_proxy_class = "2018.05.23"
+end
+
+KeypadProxy = inheritsFrom(nil)
+
+function KeypadProxy:construct(bindingID)
+	-- member variables
+	self._BindingID = bindingID
+
+	self:Initialize()
+
+end
+
+function KeypadProxy:Initialize()
+	-- create and initialize member variables
+--    self._PackLen = 8
+	self._SyncDevid = Properties["DeviceID"]
+	self._SyncMode = false
+end
+
+function KeypadProxy:dev_Newbuttoncreate(buttonid,buttonname)
+	local new_button = {}
+     new_button.BUTTON_ID = buttonid
+	new_button.NAME = buttonname
+	new_button.LOCK_COLORS = true
+
+	NOTIFY.NEW_KEYPAD_BUTTON(self._BindingID, new_button)
+end
+
+BASEADDR = {KEYPAD_BASE_ADDR = 0x1000,
+			BUTTON_BASE_ADDR = 0x1011,BUTTON_MAX_ADDR = 0x101F,
+			LED_BASE_ADDR    = 0x1020,LED_MAX_ADDR    = 0x102F,
+			RELAY_BASE_ADDR  = 0x1031,RELAY_MAX_ADDR  = 0x103F}
+COMMAND = {READ_CMD = 0x03,WRITE_CMD = 0x06,BTN_WRITE_CMD = 0x20}
+BUTTONDATA = {LEDOFF_PRESSED = 0x80,LEDOFF_RELEASED = 0xff,
+              LEDON_PRESSED  = 0x00,LEDON_RELEASED  = 0x7f,
+              LEDOFF_LONG_RELEASE = 0xfd,LEDOFF_LONG_PRESS = 0x81,LEDOFF_BTN_DEAD = 0xfe,
+              LEDON_LONG_RELEASE  = 0x7d,LEDN_LONG_PRESS   = 0x01,LEDON_BTN_DEAD  = 0x7e
+              }
+
+--[[=====================================================================
+Send Command To Device
+parameters:
+command:READ_CMD or WRITE_CMD  in COMMAND table
+reg_addr:address in BASEADDR table 2bytes
+reg_data:Register data 2bytes
+=======================================================================]]
+
+function KeypadProxy:SendCommandToDeivce(command,reg_addr,reg_data)
+    LogTrace("KeypadProxy:SendCommandToDeivce")
+
+	local cmd = string.pack("bb>H>H",self._SyncDevid,command,reg_addr,reg_data)
+	hexdump(cmd)
+	local crccode = usMBCRC16(cmd,#cmd)
+	cmd = cmd .. string.pack("H",crccode)
+	hexdump(cmd)
+	local message = ""
+	for i = 1,#cmd do
+	    message = message .. string.format("%02x",string.byte(cmd,i))
+	    print("message:" .. message)
+	end
+	local devid = C4:GetDeviceID()
+	local id = C4:GetBoundProviderDevice(devid,BUS_BINDING_ID)
+	print("Id is " .. id)
+	C4:SendToDevice(id,"SENDCMD",{COMMAND = message})
+end
+
+--[[=====================================================================
+Control Button LED
+parameters:
+btnid:A number 0~15
+state:0   OFF
+	  1   ON
+=======================================================================]]
+
+function KeypadProxy:ButtonLedControl(btnid,state)
+    LogTrace("KeypadProxy:ButtonLedControl")
+	local led_reg_addr = BASEADDR.LED_BASE_ADDR + btnid
+	if(led_reg_addr > BASEADDR.LED_MAX_ADDR) then
+		return false
+	end
+	self:SendCommandToDeivce(COMMAND.WRITE_CMD,led_reg_addr,state)
+	return true
+end
+
+
+function KeypadProxy:HandleMessage(message,msglen)
+    LogTrace("KeypadProxy:HandleMessage")
+    LogTrace("msglen = %d",msglen)
+    hexdump(message)
+    local crccode = usMBCRC16(message,msglen-2)
+    local cmddata = ""
+    if(bit.rshift(crccode,8) == string.byte(message,msglen-2+2) and bit.band(crccode,0xff) == string.byte(message,msglen-2+1)) then
+        local pos,devid,cmd,reg_addr = string.unpack(message,"bb>H")
+        local datalen,data
+        if(devid == self._SyncDevid) then
+            cmddata = string.sub(message,pos)
+            hexdump(cmddata)
+            if(cmd == COMMAND.BTN_WRITE_CMD) then
+                pos,datalen,data = string.unpack(cmddata,">H>H")
+			 print("datalen = " .. datalen .. "data = " .. data)
+                if(datalen == 1 and (data == BUTTONDATA.LEDOFF_PRESSED or data == BUTTONDATA.LEDON_PRESSED)) then
+                    local notifycmd = {}
+                    notifycmd.BUTTON_ID = reg_addr - BASEADDR.BUTTON_BASE_ADDR + 1
+                    notifycmd.ACTION = 1
+                    self:prx_KEYPAD_BUTTON_ACTION(notifycmd)
+                elseif(datalen == 1 and (data == BUTTONDATA.LEDOFF_RELEASED or data == BUTTONDATA.LEDON_RELEASED or data == BUTTONDATA.LEDOFF_LONG_RELEASE or data == BUTTONDATA.LEDON_LONG_RELEASE))
+                then
+                    local notifycmd = {}
+                    notifycmd.BUTTON_ID = reg_addr - BASEADDR.BUTTON_BASE_ADDR + 1
+                    notifycmd.ACTION = 0
+                    self:prx_KEYPAD_BUTTON_ACTION(notifycmd)
+                else
+                    LogTrace("data error")
+                end
+            elseif(cmd == COMMAND.READ_CMD or cmd == COMMAND.WRITE_CMD) then
+                pos,data = string.unpack(cmddata,">H")
+			 LogTrace("cmd == COMMAND.READ_CMD or cmd == COMMAND.WRITE_CMD")
+            else
+                LogTrace("cmd error")
+            end
+        else
+            LogTrace("device addr error")
+        end
+
+    else
+        LogTrace("HandleMessage data error!!")
+    end
+end
+
+function KeypadProxy:ButtonPressed(buttonid)
+    LogTrace("KeypadProxy:ButtonPressed")
+    local cmd = {}
+    cmd.BUTTON_ID = buttonid
+    cmd.ACTION = 1
+    NOTIFY.KEYPAD_BUTTON_ACTION(self._BindingID,cmd)
+    cmd.ACTION = 2
+    NOTIFY.KEYPAD_BUTTON_ACTION(self._BindingID,cmd)
+end
+
+
+--[[=============================================================================
+    KeypadProxy Proxy Commands(PRX_CMD)
+===============================================================================]]
+
+function KeypadProxy:prx_KEYPAD_BUTTON_ACTION(tParams)
+    tParams = tParams or {}
+    local cmd = {}
+    local btnid = tParams["BUTTON_ID"]
+    local action = tParams["ACTION"]
+    print("btnid = ".. btnid .."action = "..action .. "typeof action = " .. type(action))
+    cmd.BUTTON_ID = btnid
+    cmd.ACTION = action
+    NOTIFY.KEYPAD_BUTTON_ACTION(self._BindingID,cmd)
+end
+
+function KeypadProxy:prx_KEYPAD_BUTTON_INFO(tParams)
+    LogTrace("KeypadProxy:prx_KEYPAD_BUTTON_INFO")
+    LogTrace(tParams)
+    tParams = tParams or {}
+    local state = tParams["STATE"]
+    local btnid = tParams["BUTTON_ID"]
+    local led_state
+    print("state = " .. state .. "type:" .. type(state))
+    if(state == "True") then
+        led_state = 1
+    else
+        led_state = 0
+    end
+    self:ButtonLedControl(btnid,led_state)
+end
+
+
+
+
+
+--[[=============================================================================
+    Camera Proxy UIRequests
+===============================================================================]]
+--[[
+	Return the query string required for an HTTP image push URL request.
+--]]
+--[[
+function CameraProxy:req_GET_SNAPSHOT_QUERY_STRING(tParams)
+	tParams = tParams or {}
+    local size_x = tonumber(tParams["SIZE_X"]) or 640
+    local size_y = tonumber(tParams["SIZE_Y"]) or 480
+
+	return "<snapshot_query_string>" .. C4:XmlEscapeString(GET_SNAPSHOT_QUERY_STRING(size_x, size_y)) .. "</snapshot_query_string>"
+end
+
+]]
+
+--[[=============================================================================
+    Camera Proxy Notifies
+===============================================================================]]
+--[[
+function CameraProxy:dev_PropertyDefaults()
+	local property_defaults = {}
+	property_defaults.HTTP_PORT = C4:GetCapability("default_http_port") or 80
+	property_defaults.RTSP_PORT = C4:GetCapability("default_rtsp_port") or 554
+	property_defaults.AUTHENTICATION_REQUIRED = C4:GetCapability("default_authentication_required") or true
+	property_defaults.AUTHENTICATION_TYPE = C4:GetCapability("default_authentication_type") or "BASIC"
+	property_defaults.USERNAME = C4:GetCapability("default_username") or "username"
+	property_defaults.PASSWORD = C4:GetCapability("default_password") or "password"
+
+	NOTIFY.PROPERTY_DEFAULTS(self._BindingID, property_defaults)
+end
+
+]]
+--[[=============================================================================
+    Camera Proxy Functions
+===============================================================================]]
+-- Create class functions required by the class
+--[[
+function CameraProxy:BuildHTTPURL(queryString)
+	local httpUrl = ""
+	
+	if ((queryString ~= nil) and (string.len(queryString) > 0)) then
+		httpUrl = "http://" .. self._Address .. ":" .. self._HttpPort .. "/" .. queryString
+	end
+	
+	return httpUrl
+end
+
+]]
 
 
  end)
