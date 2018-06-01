@@ -19,8 +19,5 @@ end
 
 function LUA_ACTION.Sync()
      print("sync device")
-     local devid = C4:GetDeviceID()
-	local dest_id = C4:GetBoundProviderDevice(devid,1) 
-	print("Id is " .. dest_id)
-	C4:SendToDevice(dest_id,"SYNCDEV",{DEVICE_ID = devid})
+     gKeypadProxy._SyncMode = true
 end

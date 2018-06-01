@@ -24,6 +24,15 @@ function KeypadProxy:Initialize()
 --    self._PackLen = 8
 	self._SyncDevid = Properties["DeviceID"]
 	self._SyncMode = false
+	self._PressTimes = 0
+	self._SyncFirstCode = 0
+	self._Timer = CreateTimer("SYNC_DEVID", 3, "SECONDS", TimerCallback, false, nil)
+end
+
+function TimerCallback()
+     LogTrace("TimerCallback")
+     gKeypadProxy._SyncMode = false
+	gKeypadProxy._PressTimes = 0
 end
 
 function KeypadProxy:dev_Newbuttoncreate(buttonid,buttonname)
@@ -99,39 +108,65 @@ function KeypadProxy:HandleMessage(message,msglen)
     local crccode = usMBCRC16(message,msglen-2)
     local cmddata = ""
     if(bit.rshift(crccode,8) == string.byte(message,msglen-2+2) and bit.band(crccode,0xff) == string.byte(message,msglen-2+1)) then
-        local pos,devid,cmd,reg_addr = string.unpack(message,"bb>H")
-        local datalen,data
-        if(devid == self._SyncDevid) then
-            cmddata = string.sub(message,pos)
-            hexdump(cmddata)
-            if(cmd == COMMAND.BTN_WRITE_CMD) then
-                pos,datalen,data = string.unpack(cmddata,">H>H")
-			 print("datalen = " .. datalen .. "data = " .. data)
-                if(datalen == 1 and (data == BUTTONDATA.LEDOFF_PRESSED or data == BUTTONDATA.LEDON_PRESSED)) then
-                    local notifycmd = {}
-                    notifycmd.BUTTON_ID = reg_addr - BASEADDR.BUTTON_BASE_ADDR + 1
-                    notifycmd.ACTION = 1
-                    self:prx_KEYPAD_BUTTON_ACTION(notifycmd)
-                elseif(datalen == 1 and (data == BUTTONDATA.LEDOFF_RELEASED or data == BUTTONDATA.LEDON_RELEASED or data == BUTTONDATA.LEDOFF_LONG_RELEASE or data == BUTTONDATA.LEDON_LONG_RELEASE))
-                then
-                    local notifycmd = {}
-                    notifycmd.BUTTON_ID = reg_addr - BASEADDR.BUTTON_BASE_ADDR + 1
-                    notifycmd.ACTION = 0
-                    self:prx_KEYPAD_BUTTON_ACTION(notifycmd)
-                else
-                    LogTrace("data error")
-                end
-            elseif(cmd == COMMAND.READ_CMD or cmd == COMMAND.WRITE_CMD) then
-                pos,data = string.unpack(cmddata,">H")
-			 LogTrace("cmd == COMMAND.READ_CMD or cmd == COMMAND.WRITE_CMD")
-            else
-                LogTrace("cmd error")
-            end
-        else
-            LogTrace("device addr error")
-        end
-
+	   print("self._SyncMode = ")
+	   print(self._SyncMode)
+	   if(self._SyncMode == true) then
+		  if(self._PressTimes == 0) then
+			 self._SyncFirstCode = crccode
+			 self._PressTimes = self._PressTimes + 1
+			 StartTimer(self._Timer)
+		  else
+			 if(self._SyncFirstCode == crccode) then
+				self._PressTimes = self._PressTimes + 1
+			 end
+		  end
+		  if(self._PressTimes == 3) then
+			 local device_id = string.byte(message,1)
+			 KillTimer(self._Timer)
+			 self._PressTimes = 0
+			 self._SyncMode = false
+			 UpdateProperty("DeviceID",device_id)
+			 self._SyncDevid = device_id
+		  end
+	   else
+		  local pos,devid,cmd,reg_addr = string.unpack(message,"bb>H")
+		  local datalen,data
+		  if(devid == self._SyncDevid) then
+			 cmddata = string.sub(message,pos)
+			 hexdump(cmddata)
+			 if(cmd == COMMAND.BTN_WRITE_CMD) then
+				pos,datalen,data = string.unpack(cmddata,">H>H")
+				print("datalen = " .. datalen .. "data = " .. data)
+				if(datalen == 1 and (data == BUTTONDATA.LEDOFF_PRESSED or data == BUTTONDATA.LEDON_PRESSED)) then
+				    local notifycmd = {}
+				    notifycmd.BUTTON_ID = reg_addr - BASEADDR.BUTTON_BASE_ADDR + 1
+				    notifycmd.ACTION = 1
+				    self:prx_KEYPAD_BUTTON_ACTION(notifycmd)
+				elseif(datalen == 1 and (data == BUTTONDATA.LEDOFF_RELEASED or data == BUTTONDATA.LEDON_RELEASED or data == BUTTONDATA.LEDOFF_LONG_RELEASE or data == BUTTONDATA.LEDON_LONG_RELEASE))
+				then
+				    local notifycmd = {}
+				    notifycmd.BUTTON_ID = reg_addr - BASEADDR.BUTTON_BASE_ADDR + 1
+				    notifycmd.ACTION = 0
+				    self:prx_KEYPAD_BUTTON_ACTION(notifycmd)
+				else
+				    LogTrace("data error")
+				end
+			 elseif(cmd == COMMAND.READ_CMD or cmd == COMMAND.WRITE_CMD) then
+				pos,data = string.unpack(cmddata,">H")
+				LogTrace("cmd == COMMAND.READ_CMD or cmd == COMMAND.WRITE_CMD")
+			 else
+				LogTrace("cmd error")
+			 end
+		  else
+			 LogTrace("device addr error")
+		  end
+	   end
     else
+	   if(self._SyncMode == true and self._PressTimes > 0) then
+		  KillTimer(self._Timer)
+		  self._PressTimes = 0
+		  self._SyncMode = false
+	   end
         LogTrace("HandleMessage data error!!")
     end
 end
