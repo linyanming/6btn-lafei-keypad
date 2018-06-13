@@ -26,7 +26,60 @@ function KeypadProxy:Initialize()
 	self._SyncMode = false
 	self._PressTimes = 0
 	self._SyncFirstCode = 0
+	self._MaxMsgLength = 10
+	self._MsgTable = {}
+	self._MsgPos = 1
+	self._MsgSendPos = 1
+	self._MsgTableMax = 100
+	self._MsgSync = false
+	
+	self._CmdTable = {}
+	self._CmdPos = 1
+	self._CmdSendPos = 1
+	self._CmdTableMax = 100
+	self._CmdSync  = false
+	
 	self._Timer = CreateTimer("SYNC_DEVID", 3, "SECONDS", TimerCallback, false, nil)
+	self._MsgTimer = CreateTimer("MSG_PROCESS", 50, "MILLISECONDS", MsgTimerCallback, true, nil)
+	self._CmdTimer = CreateTimer("CMD_PROCESS", 50, "MILLISECONDS", CmdTimerCallback, true, nil)
+	self._CmdCnfTimer = CreateTimer("CMD_CONFIRM", 200, "MILLISECONDS", CmdCnfTimerCallback, false, nil)
+end
+
+function CmdCnfTimerCallback()
+    LogTrace("confirm fail")
+    gKeypadProxy:SendCommandToDeivce(gKeypadProxy._CmdTable[gKeypadProxy._CmdSendPos])
+    gKeypadProxy._CmdTable[gKeypadProxy._CmdSendPos] = ""
+    if(gKeypadProxy._CmdSendPos == gKeypadProxy._CmdTableMax) then
+	   gKeypadProxy._CmdSendPos = 1
+    else
+	   gKeypadProxy._CmdSendPos = gKeypadProxy._CmdSendPos + 1
+    end
+    gKeypadProxy._CmdSync = false
+end
+
+function CmdTimerCallback()
+    if(gKeypadProxy._CmdTable[gKeypadProxy._CmdSendPos] ~= nil and gKeypadProxy._CmdTable[gKeypadProxy._CmdSendPos] ~= "" and gKeypadProxy._CmdSync ~= true) then
+	   gKeypadProxy._CmdSync = true
+	   gKeypadProxy:SendCommandToDeivce(gKeypadProxy._CmdTable[gKeypadProxy._CmdSendPos])
+	   StartTimer(gKeypadProxy._CmdCnfTimer)
+    end
+end
+
+function MsgTimerCallback()
+    if(gKeypadProxy._MsgTable[gKeypadProxy._MsgSendPos] ~= nil and gKeypadProxy._MsgTable[gKeypadProxy._MsgSendPos] ~= "" and gKeypadProxy._MsgSync ~= true) then
+	   gKeypadProxy._MsgSync = true
+	   LogTrace("MsgTimerCallback 1 _sendMsgPos = %d",gKeypadProxy._MsgSendPos)
+	   hexdump(gKeypadProxy._MsgTable[gKeypadProxy._MsgSendPos])
+	   gKeypadProxy:HandleMessage(gKeypadProxy._MsgTable[gKeypadProxy._MsgSendPos],#gKeypadProxy._MsgTable[gKeypadProxy._MsgSendPos])
+	   gKeypadProxy._MsgTable[gKeypadProxy._MsgSendPos] = ""
+	   if(gKeypadProxy._MsgSendPos == gKeypadProxy._MsgTableMax) then
+		  gKeypadProxy._MsgSendPos = 1
+	   else
+		  gKeypadProxy._MsgSendPos = gKeypadProxy._MsgSendPos + 1
+	   end
+	   LogTrace("MsgTimerCallback 2 _sendMsgPos = %d",gKeypadProxy._MsgSendPos)
+	   gKeypadProxy._MsgSync = false
+    end
 end
 
 function TimerCallback()
@@ -63,14 +116,8 @@ reg_addr:address in BASEADDR table 2bytes
 reg_data:Register data 2bytes
 =======================================================================]]
 
-function KeypadProxy:SendCommandToDeivce(command,reg_addr,reg_data)
+function KeypadProxy:SendCommandToDeivce(cmd)
     LogTrace("KeypadProxy:SendCommandToDeivce")
-
-	local cmd = string.pack("bb>H>H",self._SyncDevid,command,reg_addr,reg_data)
-	hexdump(cmd)
-	local crccode = usMBCRC16(cmd,#cmd)
-	cmd = cmd .. string.pack("H",crccode)
-	hexdump(cmd)
 	local message = ""
 	for i = 1,#cmd do
 	    message = message .. string.format("%02x",string.byte(cmd,i))
@@ -80,6 +127,26 @@ function KeypadProxy:SendCommandToDeivce(command,reg_addr,reg_data)
 	local id = C4:GetBoundProviderDevice(devid,BUS_BINDING_ID)
 	print("Id is " .. id)
 	C4:SendToDevice(id,"SENDCMD",{COMMAND = message})
+end
+
+function KeypadProxy:CommandPack(command,reg_addr,reg_data)
+    LogTrace("KeypadProxy:CommandPack")
+    local cmd = string.pack("bb>H>H",self._SyncDevid,command,reg_addr,reg_data)
+    hexdump(cmd)
+    local crccode = usMBCRC16(cmd,#cmd)
+    cmd = cmd .. string.pack("H",crccode)
+    hexdump(cmd)
+    return cmd
+end
+
+function KeypadProxy:AddToQueue(command)
+    LogTrace("KeypadProxy:AddToQueue")
+    self._CmdTable[self._CmdPos] = command
+    if(self._CmdPos == self._CmdTableMax) then
+	   self._CmdPos = 1
+    else
+	   self._CmdPos = self._CmdPos + 1
+    end
 end
 
 --[[=====================================================================
@@ -96,7 +163,8 @@ function KeypadProxy:ButtonLedControl(btnid,state)
 	if(led_reg_addr > BASEADDR.LED_MAX_ADDR) then
 		return false
 	end
-	self:SendCommandToDeivce(COMMAND.WRITE_CMD,led_reg_addr,state)
+	local cmd = self:CommandPack(COMMAND.WRITE_CMD,led_reg_addr,state)
+	self:AddToQueue(cmd)
 	return true
 end
 
@@ -154,6 +222,21 @@ function KeypadProxy:HandleMessage(message,msglen)
 			 elseif(cmd == COMMAND.READ_CMD or cmd == COMMAND.WRITE_CMD) then
 				pos,data = string.unpack(cmddata,">H")
 				LogTrace("cmd == COMMAND.READ_CMD or cmd == COMMAND.WRITE_CMD")
+				if(message == self._CmdTable[self._CmdSendPos]) then
+				    if(TimerStarted(self._CmdCnfTimer)) then
+					   LogTrace("confirm success")
+					   KillTimer(self._CmdCnfTimer)
+					   self._CmdTable[self._CmdSendPos] = ""
+					   if(self._CmdSendPos == self._CmdTableMax) then
+						  self._CmdSendPos = 1
+					   else
+						  self._CmdSendPos = self._CmdSendPos + 1
+					   end
+					   self._CmdSync = false
+				    end
+				else
+				    LogTrace("restart confirm")
+				end
 			 else
 				LogTrace("cmd error")
 			 end

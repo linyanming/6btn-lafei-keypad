@@ -36,24 +36,50 @@ function EX_CMD.RECVMSG(tParams)
 	local msg = tParams["MESSAGE"]
 	local tmp_msg = ""
 	if(msg ~= nil and msg ~= "") then
-	    local msglen = #msg/2
-	    local message = string.lower(msg)
-	    for i = 1,msglen do
-	        local temp = 0
-	        local tab = (i - 1)*2 + 1
-            if(string.byte(message,tab) >= string.byte("a")) then
-                temp = temp + (string.byte(message,tab) - string.byte("a") + 10) * 16
-            else
-                temp = temp + (string.byte(message,tab) - string.byte("0")) * 16
-            end
-            if(string.byte(message,tab+1) >= string.byte("a")) then
-                temp = temp + (string.byte(message,tab+1) - string.byte("a") + 10)
-            else
-                temp = temp + (string.byte(message,tab+1) - string.byte("0"))
-            end            
-            print(temp)
-            tmp_msg = tmp_msg .. string.pack("b",temp)
-	    end
-	    gKeypadProxy:HandleMessage(tmp_msg,msglen)
+	   tmp_msg = tohex(msg)
+	   LogTrace("_MsgPos = %d",gKeypadProxy._MsgPos)
+	   LogTrace("_sendMsgPos = %d",gKeypadProxy._MsgSendPos)
+	   hexdump(tmp_msg)
+	   if(#tmp_msg <= gKeypadProxy._MaxMsgLength) then
+		  LogTrace("#tmp_msg <= gKeypadProxy._MaxMsgLength")
+		  gKeypadProxy._MsgTable[gKeypadProxy._MsgPos] = tmp_msg
+		  if(gKeypadProxy._MsgPos == gKeypadProxy._MsgTableMax) then
+			 gKeypadProxy._MsgPos = 1
+		  else
+			 gKeypadProxy._MsgPos = gKeypadProxy._MsgPos + 1
+		  end
+	   else
+		  while(#tmp_msg > gKeypadProxy._MaxMsgLength)
+		  do
+			 LogTrace("#tmp_msg > gKeypadProxy._MaxMsgLength")
+			 local pos,devid,cmd = string.unpack(tmp_msg,"bb")
+			 local command = nil
+			 if(cmd == COMMAND.BTN_WRITE_CMD) then
+				command = string.sub(tmp_msg,1,10)
+				tmp_msg = string.sub(tmp_msg,11,#tmp_msg)
+			 else
+				command = string.sub(tmp_msg,1,8)
+				tmp_msg = string.sub(tmp_msg,9,#tmp_msg)
+			 end
+			 LogTrace("_MsgPos = %d",gKeypadProxy._MsgPos)
+			 gKeypadProxy._MsgTable[gKeypadProxy._MsgPos] = command
+			 if(gKeypadProxy._MsgPos == gKeypadProxy._MsgTableMax) then
+				gKeypadProxy._MsgPos = 1
+			 else
+				gKeypadProxy._MsgPos = gKeypadProxy._MsgPos + 1
+			 end		  
+			 LogTrace("command = ")
+			 hexdump(command)
+			 hexdump(tmp_msg)
+		  end
+		  LogTrace("_MsgPos = %d",gKeypadProxy._MsgPos)
+	      LogTrace("_sendMsgPos = %d",gKeypadProxy._MsgSendPos)
+		  gKeypadProxy._MsgTable[gKeypadProxy._MsgPos] = tmp_msg
+		  if(gKeypadProxy._MsgPos == gKeypadProxy._MsgTableMax) then
+			 gKeypadProxy._MsgPos = 1
+		  else
+			 gKeypadProxy._MsgPos = gKeypadProxy._MsgPos + 1
+		  end
+	   end
 	end
 end
