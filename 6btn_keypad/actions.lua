@@ -21,3 +21,12 @@ function LUA_ACTION.Sync()
      print("sync device")
      gKeypadProxy._SyncMode = true
 end
+
+function LUA_ACTION.SENDCOMMAND(tParams)
+     LogTrace("LUA_ACTION.SENDCOMMAND")
+	LogTrace(tParams)
+	local cmd = tParams["CMD"]
+	local command = tohex(cmd)
+	hexdump(command)
+     gKeypadProxy:AddToQueue(command)
+end

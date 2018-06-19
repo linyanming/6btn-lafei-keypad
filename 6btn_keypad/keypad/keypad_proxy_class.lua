@@ -121,7 +121,6 @@ function KeypadProxy:SendCommandToDeivce(cmd)
 	local message = ""
 	for i = 1,#cmd do
 	    message = message .. string.format("%02x",string.byte(cmd,i))
-	    print("message:" .. message)
 	end
 	local devid = C4:GetDeviceID()
 	local id = C4:GetBoundProviderDevice(devid,BUS_BINDING_ID)

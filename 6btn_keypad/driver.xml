@@ -8,11 +8,11 @@
   <name>6 Buntton Lafei Keypad</name>
   <model>Lafei Keypad</model>
   <created>05/29/2018 10:35 AM</created>
-  <modified>06/13/2018 10:30 AM</modified>
+  <modified>06/19/2018 1:22 PM</modified>
   <!-- 
 	Each time you modify the driver update the version number below.
 	-->
-  <version>19</version>
+  <version>21</version>
   <capabilities>
     <!-- 
 		These are the modes the camera might support.  If the camera does not support H264 then remove the H264 entries
@@ -157,6 +157,17 @@
       <action>
         <name>Sync</name>
         <command>Sync</command>
+      </action>
+      <action>
+        <name>SENDCOMMAND</name>
+        <command>SENDCOMMAND</command>
+        <params>
+          <param>
+            <name>CMD</name>
+            <type>STRING</type>
+            <default></default>
+          </param>
+        </params>
       </action>
     </actions>
     <serialsettings>9600 8 none 1 none 485</serialsettings>

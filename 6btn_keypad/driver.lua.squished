@@ -3320,6 +3320,15 @@ function LUA_ACTION.Sync()
      print("sync device")
      gKeypadProxy._SyncMode = true
 end
+
+function LUA_ACTION.SENDCOMMAND(tParams)
+     LogTrace("LUA_ACTION.SENDCOMMAND")
+	LogTrace(tParams)
+	local cmd = tParams["CMD"]
+	local command = tohex(cmd)
+	hexdump(command)
+     gKeypadProxy:AddToQueue(command)
+end
  end)
 package.preload['connections'] = (function (...)
 --[[=============================================================================
@@ -4333,7 +4342,6 @@ function KeypadProxy:SendCommandToDeivce(cmd)
 	local message = ""
 	for i = 1,#cmd do
 	    message = message .. string.format("%02x",string.byte(cmd,i))
-	    print("message:" .. message)
 	end
 	local devid = C4:GetDeviceID()
 	local id = C4:GetBoundProviderDevice(devid,BUS_BINDING_ID)
