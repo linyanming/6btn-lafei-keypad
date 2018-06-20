@@ -39,12 +39,18 @@ function KeypadProxy:Initialize()
 	self._CmdTableMax = 100
 	self._CmdSync  = false
 	
+	self._SetID = 0
+	
+	self._SetIDTimer = CreateTimer("SETID", 500, "MILLISECONDS", SetIDTimerCallback, false, nil)
 	self._Timer = CreateTimer("SYNC_DEVID", 3, "SECONDS", TimerCallback, false, nil)
 	self._MsgTimer = CreateTimer("MSG_PROCESS", 50, "MILLISECONDS", MsgTimerCallback, true, nil)
 	self._CmdTimer = CreateTimer("CMD_PROCESS", 50, "MILLISECONDS", CmdTimerCallback, true, nil)
 	self._CmdCnfTimer = CreateTimer("CMD_CONFIRM", 200, "MILLISECONDS", CmdCnfTimerCallback, false, nil)
 end
 
+function SetIDTimerCallback()
+    gKeypadProxy._SetID = 0
+end
 function CmdCnfTimerCallback()
     LogTrace("confirm fail")
     gKeypadProxy:SendCommandToDeivce(gKeypadProxy._CmdTable[gKeypadProxy._CmdSendPos])
@@ -194,6 +200,28 @@ function KeypadProxy:HandleMessage(message,msglen)
 			 self._SyncMode = false
 			 UpdateProperty("DeviceID",device_id)
 			 self._SyncDevid = device_id
+		  end
+	   elseif(self._SetID ~= 0) then
+		  LogTrace("self._SetID ~= 0")
+		  local pos,devid,cmd,reg_addr,data = string.unpack(message,"bb>H>H")
+	   --[[
+		  LogTrace("devid = %d,cmd = %d,reg_addr = %d,data = %d",devid,cmd,reg_addr,data)
+		  LogTrace("self._SetID = %d,COMMAND.WRITE_CMD = %d,BASEADDR.KEYPAD_BASE_ADDR = %d",self._SetID,COMMAND.WRITE_CMD,BASEADDR.KEYPAD_BASE_ADDR)
+		  print(type(devid))
+		  print(type(cmd))
+		  print(type(reg_addr))
+		  print(type(data))
+		  print(type(self._SetID))
+		  print(type(COMMAND.WRITE_CMD))
+		  print(type(BASEADDR.KEYPAD_BASE_ADDR))]]
+		  if(devid == self._SetID and cmd == COMMAND.WRITE_CMD and reg_addr == BASEADDR.KEYPAD_BASE_ADDR and data == self._SetID) then
+			 LogTrace("set id success")
+			 UpdateProperty("DeviceID",devid)
+			 self._SyncDevid = devid
+			 self._SetID = 0
+			 if(TimerStarted(self._SetIDTimer)) then
+				KillTimer(self._SetIDTimer)
+			 end
 		  end
 	   else
 		  local pos,devid,cmd,reg_addr = string.unpack(message,"bb>H")

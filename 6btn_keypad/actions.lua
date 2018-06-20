@@ -18,7 +18,7 @@ end
 
 
 function LUA_ACTION.Sync()
-     print("sync device")
+     LogTrace("LUA_ACTION.Sync")
      gKeypadProxy._SyncMode = true
 end
 
@@ -29,4 +29,14 @@ function LUA_ACTION.SENDCOMMAND(tParams)
 	local command = tohex(cmd)
 	hexdump(command)
      gKeypadProxy:AddToQueue(command)
+end
+
+function LUA_ACTION.SETID(tParams)
+     LogTrace("LUA_ACTION.SETID")
+	local deviceid = tParams["DEVICEID"]
+	local cmd = gKeypadProxy:CommandPack(COMMAND.WRITE_CMD,BASEADDR.KEYPAD_BASE_ADDR,deviceid)
+     hexdump(cmd)
+	gKeypadProxy:SendCommandToDeivce(cmd)
+	gKeypadProxy._SetID = tonumber(deviceid)
+	StartTimer(gKeypadProxy._SetIDTimer)
 end
