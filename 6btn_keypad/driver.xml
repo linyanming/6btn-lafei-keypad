@@ -8,11 +8,11 @@
   <name>6 Buntton Lafei Keypad</name>
   <model>Lafei Keypad</model>
   <created>05/29/2018 10:35 AM</created>
-  <modified>08/21/2018 10:18 AM</modified>
+  <modified>08/22/2018 9:10 AM</modified>
   <!-- 
 	Each time you modify the driver update the version number below.
 	-->
-  <version>24</version>
+  <version>25</version>
   <capabilities>
     <!-- 
 		These are the modes the camera might support.  If the camera does not support H264 then remove the H264 entries
