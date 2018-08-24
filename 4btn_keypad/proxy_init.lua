@@ -30,8 +30,6 @@ function ON_DRIVER_LATEINIT.proxy_init()
 	gKeypadProxy:dev_Newbuttoncreate(2,"button2")
 	gKeypadProxy:dev_Newbuttoncreate(3,"button3")
 	gKeypadProxy:dev_Newbuttoncreate(4,"button4")
-	gKeypadProxy:dev_Newbuttoncreate(5,"button5")
-	gKeypadProxy:dev_Newbuttoncreate(6,"button6")
 	StartTimer(gKeypadProxy._MsgTimer)
 	StartTimer(gKeypadProxy._CmdTimer)
 end
